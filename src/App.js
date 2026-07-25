@@ -23,6 +23,9 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
+  // আপনার API Key যুক্ত করা হয়েছে
+  const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -59,20 +62,6 @@ function App() {
 
   const handleLogout = () => signOut(auth);
 
-  // File to Base64 Converter (No Storage Bucket Needed)
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const fileReader = new FileReader();
-      fileReader.readAsDataURL(file);
-      fileReader.onload = () => {
-        resolve(fileReader.result);
-      };
-      fileReader.onerror = (error) => {
-        reject(error);
-      };
-    });
-  };
-
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !subject || !noteDate) {
@@ -80,36 +69,52 @@ function App() {
       return;
     }
 
-    // Direct Database save max size ~1MB to 2MB (Perfect for images and small PDFs)
-    if (file.size > 1048576) {
-      alert("ক্রেডিট কার্ড ছাড়া ফাইল সেভ করার সীমা ১ MB। অনুগহ করে ১ MB এর ছোট ছবি বা PDF ফাইল আপলোড দিন!");
+    // ৩০ MB সাইজ লিমিট
+    const MAX_SIZE_MB = 30;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(`ফাইলের সাইজ সর্বোচ্চ ${MAX_SIZE_MB} MB হতে পারবে! আপনার ফাইলের সাইজ বেশি।`);
       return;
     }
 
     setUploading(true);
 
     try {
-      const base64File = await convertToBase64(file);
-      
-      await addDoc(collection(db, "notes"), {
-        fileName: file.name,
-        subject: subject,
-        date: noteDate,
-        fileUrl: base64File,
-        uploadedBy: user.displayName || user.email.split('@')[0],
-        uploaderUid: user.uid,
-        createdAt: new Date()
+      const formData = new FormData();
+      formData.append("image", file);
+
+      // Free Upload API
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+        method: "POST",
+        body: formData,
       });
 
-      setUploading(false);
-      setFile(null);
-      setSubject("");
-      setNoteDate("");
-      alert("নোট সফলভাবে আপলোড হয়েছে!");
+      const result = await response.json();
+
+      if (result.success || result.data?.url) {
+        const downloadURL = result.data.url;
+
+        await addDoc(collection(db, "notes"), {
+          fileName: file.name,
+          subject: subject,
+          date: noteDate,
+          fileUrl: downloadURL,
+          uploadedBy: user.displayName || user.email.split('@')[0],
+          uploaderUid: user.uid,
+          createdAt: new Date()
+        });
+
+        setUploading(false);
+        setFile(null);
+        setSubject("");
+        setNoteDate("");
+        alert("নোট/PDF সফলভাবে আপলোড হয়েছে!");
+      } else {
+        throw new Error(result.error?.message || "ফাইল সার্ভারে আপলোড হতে সমস্যা হয়েছে।");
+      }
     } catch (error) {
       console.error("Upload Error:", error);
       setUploading(false);
-      alert("আপলোড ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।");
+      alert(`আপলোড ব্যর্থ হয়েছে! এরর: ${error.message}`);
     }
   };
 
@@ -210,7 +215,7 @@ function App() {
           </div>
 
           <div style={styles.uploadCard}>
-            <h3 style={{ color: "#0f172a", marginBottom: "15px" }}>📌 নতুন ক্লাসের নোট আপলোড করুন</h3>
+            <h3 style={{ color: "#0f172a", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
             <form onSubmit={handleUpload} style={styles.uploadForm}>
               <div style={styles.inputGroup}>
                 <input 
@@ -232,18 +237,21 @@ function App() {
 
               <input 
                 type="file" 
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                accept=".pdf,.png,.jpg,.jpeg"
                 onChange={(e) => setFile(e.target.files[0])} 
                 required
                 style={{ margin: "15px 0" }}
               />
+              <small style={{ color: "#64748b", marginBottom: "15px", display: "block" }}>
+                * সর্বোচ্চ ফাইল সাইজ লিমিট: <b>30 MB</b> (PDF / Image)
+              </small>
               
               <button 
                 type="submit" 
                 disabled={uploading}
                 style={styles.uploadBtn}
               >
-                {uploading ? "আপলোড হচ্ছে..." : "📤 নোট শেয়ার করুন"}
+                {uploading ? "আপলোড হচ্ছে (অপেক্ষা করুন)..." : "📤 ৩০ MB পর্যন্ত PDF আপলোড করুন"}
               </button>
             </form>
           </div>
@@ -266,8 +274,8 @@ function App() {
                   </div>
                   
                   <div style={styles.cardActions}>
-                    <a href={n.fileUrl} download={n.fileName} style={styles.viewBtn}>
-                      👁️ দেখুন / ডাউনলোড
+                    <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
+                      📄 PDF / ছবি দেখুন
                     </a>
                     <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn}>
                       🔗 শেয়ার
