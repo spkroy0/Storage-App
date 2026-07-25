@@ -359,25 +359,38 @@ function App() {
       <footer style={styles.footer}>
         <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
         
-        {/* Contact Buttons */}
+        {/* Contact Information with Icons */}
         <div style={styles.contactContainer}>
-          <a 
-            href={`https://wa.me/${WHATSAPP_NUMBER}`} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={styles.whatsappBtn}
-          >
-            💬 WhatsApp
-          </a>
+          <div style={styles.contactItem}>
+            {/* WhatsApp Icon */}
+            <a 
+              href={`https://wa.me/${WHATSAPP_NUMBER}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={styles.iconLink}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.51 1.039 3.531l-.683 2.493 2.562-.672c.983.537 2.109.845 3.303.846 3.18 0 5.767-2.586 5.768-5.766.001-3.181-2.585-5.798-5.766-5.798zm3.383 8.163c-.141.397-.822.771-1.134.818-.313.048-.718.082-2.316-.543-1.898-.742-3.111-2.679-3.206-2.806-.095-.127-.768-1.021-.768-1.948 0-.927.487-1.381.66-1.571.173-.19.378-.238.504-.238.126 0 .252.001.362.007.116.006.273-.044.425.321.157.378.536 1.309.584 1.405.048.096.08.209.016.335-.064.126-.096.205-.189.315-.095.109-.199.244-.284.328-.096.095-.196.198-.085.388.111.19.493.813 1.058 1.317.727.648 1.341.849 1.531.944.19.095.301.079.412-.048.111-.127.473-.552.6-.741.127-.19.252-.158.425-.095.173.063 1.103.52 1.293.615.19.095.316.142.363.221.047.079.047.458-.094.855z"/>
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.178L1.8 22.2l5.143-1.587C8.384 21.492 10.125 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.71 0-3.32-.472-4.707-1.291l-.337-.2-3.048.941.956-2.972-.224-.352C3.785 14.73 3.2 13.42 3.2 12c0-4.852 3.948-8.8 8.8-8.8s8.8 3.948 8.8 8.8-3.948 8.8-8.8 8.8z"/>
+              </svg>
+            </a>
+            <span style={styles.phoneText}>(+8801522107909) only for message</span>
+          </div>
 
-          <a 
-            href={FACEBOOK_URL} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={styles.facebookBtn}
-          >
-            📘 Facebook Profile
-          </a>
+          <div style={styles.contactItem}>
+            {/* Facebook Icon */}
+            <a 
+              href={FACEBOOK_URL} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={styles.iconLink}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <span style={styles.fbText}>Facebook Profile</span>
+            </a>
+          </div>
         </div>
       </footer>
     </div>
@@ -423,9 +436,11 @@ const styles = {
   renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
   deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
   footer: { textAlign: "center", padding: "20px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "13px", color: "#64748b" },
-  contactContainer: { marginTop: "12px", display: "flex", justifyContent: "center", gap: "10px" },
-  whatsappBtn: { display: "inline-block", backgroundColor: "#25D366", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" },
-  facebookBtn: { display: "inline-block", backgroundColor: "#1877F2", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }
+  contactContainer: { marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "20px", flexWrap: "wrap" },
+  contactItem: { display: "flex", alignItems: "center", gap: "6px" },
+  iconLink: { display: "inline-flex", alignItems: "center", gap: "5px", textDecoration: "none" },
+  phoneText: { fontSize: "13px", color: "#334155", fontWeight: "500" },
+  fbText: { fontSize: "13px", color: "#1877F2", fontWeight: "600" }
 };
 
 export default App;
