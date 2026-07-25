@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { collection, addDoc, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -23,8 +23,15 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // আপনার API Key যুক্ত করা হয়েছে
+  // ImgBB API Key
   const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
+
+  // 👑 শুধুমাত্র আপনার ইমেইলকে Admin হিসেবে সেট করা হলো
+  const ADMIN_EMAIL = "spkroy2006@gmail.com";
+  const isAdmin = user && user.email === ADMIN_EMAIL;
+
+  // WhatsApp নম্বর
+  const WHATSAPP_NUMBER = "8801522107909";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -69,10 +76,9 @@ function App() {
       return;
     }
 
-    // ৩০ MB সাইজ লিমিট
     const MAX_SIZE_MB = 30;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      alert(`ফাইলের সাইজ সর্বোচ্চ ${MAX_SIZE_MB} MB হতে পারবে! আপনার ফাইলের সাইজ বেশি।`);
+      alert(`ফাইলের সাইজ সর্বোচ্চ ${MAX_SIZE_MB} MB হতে পারবে!`);
       return;
     }
 
@@ -82,7 +88,6 @@ function App() {
       const formData = new FormData();
       formData.append("image", file);
 
-      // Free Upload API
       const response = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
         method: "POST",
         body: formData,
@@ -109,12 +114,52 @@ function App() {
         setNoteDate("");
         alert("নোট/PDF সফলভাবে আপলোড হয়েছে!");
       } else {
-        throw new Error(result.error?.message || "ফাইল সার্ভারে আপলোড হতে সমস্যা হয়েছে।");
+        throw new Error(result.error?.message || "আপলোডে সমস্যা হয়েছে।");
       }
     } catch (error) {
       console.error("Upload Error:", error);
       setUploading(false);
       alert(`আপলোড ব্যর্থ হয়েছে! এরর: ${error.message}`);
+    }
+  };
+
+  // 👑 Admin Control: ফাইল মুছে ফেলা
+  const handleDelete = async (noteId) => {
+    if (!isAdmin) {
+      alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
+      return;
+    }
+    const confirmDelete = window.confirm("অ্যাডমিন প্যানেল: আপনি কি এই ফাইলটি পুরোপুরি মুছে ফেলতে চান?");
+    if (confirmDelete) {
+      try {
+        await deleteDoc(doc(db, "notes", noteId));
+        alert("ফাইলটি মুছে ফেলা হয়েছে!");
+      } catch (error) {
+        alert("ডিলিট করতে ব্যর্থ হয়েছে!");
+      }
+    }
+  };
+
+  // 👑 Admin Control: ফাইল ও বিষয়ের নাম পরিবর্তন করা
+  const handleRename = async (noteId, currentFileName, currentSubject) => {
+    if (!isAdmin) {
+      alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
+      return;
+    }
+    const newFileName = prompt("নতুন ফাইলের নাম লিখুন:", currentFileName);
+    const newSubject = prompt("নতুন বিষয়ের নাম লিখুন:", currentSubject);
+
+    if (newFileName && newSubject) {
+      try {
+        const noteRef = doc(db, "notes", noteId);
+        await updateDoc(noteRef, {
+          fileName: newFileName,
+          subject: newSubject
+        });
+        alert("ফাইলের তথ্য সফলভাবে আপডেট করা হয়েছে!");
+      } catch (error) {
+        alert("আপডেট করতে ব্যর্থ হয়েছে!");
+      }
     }
   };
 
@@ -143,7 +188,7 @@ function App() {
           <div style={styles.welcomeBox}>
             <h2 style={{ color: "#1e293b", marginBottom: "10px" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৬ ব্যাচ! 📚</h2>
             <p style={{ color: "#64748b", lineHeight: "1.6" }}>
-              এখানে ক্লাসের বিষয়ভিত্তিক নোট এবং ফাইল আপলোড ও শেয়ার করা যাবে। সাইটে প্রবেশ করতে নিচে লগইন করুন।
+              এখানে ক্লাসের বিষয়ভিত্তিক নোট এবং ফাইল আপলোড ও শেয়ার করা যাবে। সাইটে প্রবেশ করতে লগইন করুন।
             </p>
           </div>
 
@@ -209,7 +254,9 @@ function App() {
           <div style={styles.userBar}>
             <div>
               <span style={{ fontWeight: "bold", color: "#1e293b" }}>👤 {user.displayName || user.email}</span>
-              <span style={styles.badge}>Batch 2026</span>
+              <span style={isAdmin ? styles.adminBadge : styles.badge}>
+                {isAdmin ? "👑 Admin" : "Student"}
+              </span>
             </div>
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
@@ -243,7 +290,7 @@ function App() {
                 style={{ margin: "15px 0" }}
               />
               <small style={{ color: "#64748b", marginBottom: "15px", display: "block" }}>
-                * সর্বোচ্চ ফাইল সাইজ লিমিট: <b>30 MB</b> (PDF / Image)
+                * সর্বোচ্চ ফাইল সাইজ: <b>30 MB</b> (PDF/Image)
               </small>
               
               <button 
@@ -251,7 +298,7 @@ function App() {
                 disabled={uploading}
                 style={styles.uploadBtn}
               >
-                {uploading ? "আপলোড হচ্ছে (অপেক্ষা করুন)..." : "📤 ৩০ MB পর্যন্ত PDF আপলোড করুন"}
+                {uploading ? "আপলোড হচ্ছে..." : "📤 নোট আপলোড করুন"}
               </button>
             </form>
           </div>
@@ -260,7 +307,7 @@ function App() {
           
           <div style={styles.notesGrid}>
             {allNotes.length === 0 ? (
-              <p style={{ color: "#64748b" }}>এখনো কোনো নোট শেয়ার করা হয়নি। প্রথম নোটটি আপনিই আপলোড করুন!</p>
+              <p style={{ color: "#64748b" }}>এখনো কোনো নোট শেয়ার করা হয়নি।</p>
             ) : (
               allNotes.map((n) => (
                 <div key={n.id} style={styles.noteCard}>
@@ -275,11 +322,31 @@ function App() {
                   
                   <div style={styles.cardActions}>
                     <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
-                      📄 PDF / ছবি দেখুন
+                      📄 দেখুন
                     </a>
                     <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn}>
                       🔗 শেয়ার
                     </button>
+
+                    {/* 👑 শুধুমাত্র অ্যাডমিনের জন্য (spkroy2006@gmail.com) Rename ও Delete বাটন */}
+                    {isAdmin && (
+                      <>
+                        <button 
+                          onClick={() => handleRename(n.id, n.fileName, n.subject)} 
+                          style={styles.renameBtn}
+                          title="Rename / Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(n.id)} 
+                          style={styles.deleteBtn}
+                          title="Delete File"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))
@@ -290,6 +357,16 @@ function App() {
 
       <footer style={styles.footer}>
         <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
+        <div style={{ marginTop: "10px" }}>
+          <a 
+            href={`https://wa.me/${WHATSAPP_NUMBER}`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={styles.whatsappBtn}
+          >
+            💬 Contact Admin (WhatsApp)
+          </a>
+        </div>
       </footer>
     </div>
   );
@@ -315,6 +392,7 @@ const styles = {
   mainFeed: { maxWidth: "900px", margin: "30px auto", padding: "0 20px", width: "100%" },
   userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "15px 20px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" },
   badge: { backgroundColor: "#dbeafe", color: "#1e40af", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px" },
+  adminBadge: { backgroundColor: "#fef3c7", color: "#d97706", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px", fontWeight: "bold" },
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" },
   uploadCard: { backgroundColor: "#fff", padding: "25px", borderRadius: "16px", marginBottom: "30px", border: "1px solid #e2e8f0" },
   uploadForm: { display: "flex", flexDirection: "column" },
@@ -327,10 +405,13 @@ const styles = {
   dateTag: { fontSize: "12px", color: "#64748b" },
   fileName: { fontSize: "15px", color: "#1e293b", margin: "10px 0 5px 0", wordBreak: "break-all" },
   uploaderText: { fontSize: "12px", color: "#94a3b8", marginBottom: "15px" },
-  cardActions: { display: "flex", gap: "8px" },
+  cardActions: { display: "flex", gap: "5px" },
   viewBtn: { flex: 2, backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "8px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
   copyBtn: { flex: 1, backgroundColor: "#f1f5f9", color: "#334155", border: "none", padding: "8px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-  footer: { textAlign: "center", padding: "20px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "13px", color: "#64748b" }
+  renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
+  deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
+  footer: { textAlign: "center", padding: "20px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "13px", color: "#64748b" },
+  whatsappBtn: { display: "inline-block", backgroundColor: "#25D366", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }
 };
 
 export default App;
