@@ -30,8 +30,9 @@ function App() {
   const ADMIN_EMAIL = "spkroy2006@gmail.com";
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
-  // WhatsApp নম্বর
+  // Contact Info
   const WHATSAPP_NUMBER = "8801522107909";
+  const FACEBOOK_URL = "https://www.facebook.com/spk.roy.02/";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -357,14 +358,25 @@ function App() {
 
       <footer style={styles.footer}>
         <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
-        <div style={{ marginTop: "10px" }}>
+        
+        {/* Contact Buttons */}
+        <div style={styles.contactContainer}>
           <a 
             href={`https://wa.me/${WHATSAPP_NUMBER}`} 
             target="_blank" 
             rel="noopener noreferrer" 
             style={styles.whatsappBtn}
           >
-            💬 Contact Admin (WhatsApp)
+            💬 WhatsApp
+          </a>
+
+          <a 
+            href={FACEBOOK_URL} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={styles.facebookBtn}
+          >
+            📘 Facebook Profile
           </a>
         </div>
       </footer>
@@ -411,7 +423,9 @@ const styles = {
   renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
   deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
   footer: { textAlign: "center", padding: "20px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "13px", color: "#64748b" },
-  whatsappBtn: { display: "inline-block", backgroundColor: "#25D366", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }
+  contactContainer: { marginTop: "12px", display: "flex", justifyContent: "center", gap: "10px" },
+  whatsappBtn: { display: "inline-block", backgroundColor: "#25D366", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" },
+  facebookBtn: { display: "inline-block", backgroundColor: "#1877F2", color: "#fff", textDecoration: "none", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }
 };
 
 export default App;
