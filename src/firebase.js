@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// আপনার দেওয়া আসল ফায়ারবেস কনফিগারেশন
+// আপনার ফায়ারবেস কনফিগারেশন
 const firebaseConfig = {
   apiKey: "AIzaSyAd0e5Ry5a8-8NsKP5hnDKai8vmkNee2m0",
   authDomain: "my-drive-d711a.firebaseapp.com",
@@ -14,10 +14,10 @@ const firebaseConfig = {
   measurementId: "G-ZK9RE0RL07"
 };
 
-// ফায়ারবেস ইনিশিয়ালাইজ করা
+// ফায়ারবেস ইনিশিয়ালাইজেশন
 const app = initializeApp(firebaseConfig);
 
-// যে বিষয়গুলো Vercel ও App.js খুজছিল
+// প্রয়োজনীয় মডিউলসমূহ Export করা
 export const auth = getAuth(app);
 export const provider = new GoogleAuthProvider();
 export const db = getFirestore(app);
