@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, provider, db, storage } from "./firebase";
+import { auth, provider, db } from "./firebase";
 import { 
   signInWithPopup, 
   signOut, 
@@ -7,7 +7,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { collection, addDoc, query, orderBy, onSnapshot } from "firebase/firestore";
 
 function App() {
@@ -60,56 +59,58 @@ function App() {
 
   const handleLogout = () => signOut(auth);
 
-  const handleUpload = (e) => {
+  // File to Base64 Converter (No Storage Bucket Needed)
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const fileReader = new FileReader();
+      fileReader.readAsDataURL(file);
+      fileReader.onload = () => {
+        resolve(fileReader.result);
+      };
+      fileReader.onerror = (error) => {
+        reject(error);
+      };
+    });
+  };
+
+  const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !subject || !noteDate) {
       alert("অনুগ্রহ করে ফাইল, বিষয় এবং তারিখ প্রদান করুন!");
       return;
     }
 
-    const MAX_SIZE = 50 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      alert("ফাইলের সাইজ ৫০ MB এর বেশি হতে পারবে না!");
+    // Direct Database save max size ~1MB to 2MB (Perfect for images and small PDFs)
+    if (file.size > 1048576) {
+      alert("ক্রেডিট কার্ড ছাড়া ফাইল সেভ করার সীমা ১ MB। অনুগহ করে ১ MB এর ছোট ছবি বা PDF ফাইল আপলোড দিন!");
       return;
     }
 
     setUploading(true);
-    const storageRef = ref(storage, `notes/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
 
-    uploadTask.on(
-      "state_changed",
-      null,
-      (error) => {
-        console.error("Upload error:", error);
-        setUploading(false);
-        alert("আপলোড ব্যর্থ হয়েছে! ফায়ারবেস পারমিশন চেক করুন।");
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
-          try {
-            await addDoc(collection(db, "notes"), {
-              fileName: file.name,
-              subject: subject,
-              date: noteDate,
-              fileUrl: downloadURL,
-              uploadedBy: user.displayName || user.email.split('@')[0],
-              uploaderUid: user.uid,
-              createdAt: new Date()
-            });
-            setUploading(false);
-            setFile(null);
-            setSubject("");
-            setNoteDate("");
-            alert("নোট সফলভাবে আপলোড হয়েছে!");
-          } catch (dbErr) {
-            console.error("Database Save Error:", dbErr);
-            setUploading(false);
-            alert("ফাইল স্টোরেজে গেছে কিন্তু ডাটাবেসে সেভ হয়নি!");
-          }
-        });
-      }
-    );
+    try {
+      const base64File = await convertToBase64(file);
+      
+      await addDoc(collection(db, "notes"), {
+        fileName: file.name,
+        subject: subject,
+        date: noteDate,
+        fileUrl: base64File,
+        uploadedBy: user.displayName || user.email.split('@')[0],
+        uploaderUid: user.uid,
+        createdAt: new Date()
+      });
+
+      setUploading(false);
+      setFile(null);
+      setSubject("");
+      setNoteDate("");
+      alert("নোট সফলভাবে আপলোড হয়েছে!");
+    } catch (error) {
+      console.error("Upload Error:", error);
+      setUploading(false);
+      alert("আপলোড ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।");
+    }
   };
 
   const copyLink = (url) => {
@@ -265,7 +266,7 @@ function App() {
                   </div>
                   
                   <div style={styles.cardActions}>
-                    <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
+                    <a href={n.fileUrl} download={n.fileName} style={styles.viewBtn}>
                       👁️ দেখুন / ডাউনলোড
                     </a>
                     <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn}>
