@@ -434,7 +434,7 @@ function App() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={styles.pulseGreenDot}></span>
               <h4 style={{ margin: 0, color: "#4ade80", fontSize: "14px" }}>
-                লাইভ একটিভ ইউজার: <b>{onlineUsers.length}</b> জন অনলোইন আছেন
+                লাইভ একটিভ ইউজার: <b>{onlineUsers.length}</b> জন অনলাইন আছেন
               </h4>
             </div>
             
@@ -461,7 +461,7 @@ function App() {
                 </label>
                 <input 
                   type="text" 
-                  placeholder="ইউজারের নাম লিখুন (e.g. Anondo, SPK)..." 
+                  placeholder="ইউজারের নাম লিখুন (e.g. Anondo,shuvo,zahid)..." 
                   value={dashboardUserSearch}
                   onChange={(e) => setDashboardUserSearch(e.target.value)}
                   style={styles.searchInput}
