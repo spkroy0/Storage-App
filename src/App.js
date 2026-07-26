@@ -25,7 +25,7 @@ import {
 
 // SVG Icons import from Lucide React
 import { 
-  Home, LayoutDashboard, User, LogOut, Shield, ShieldAlert, ShieldCheck,
+  Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
   Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink
 } from "lucide-react";
@@ -853,7 +853,7 @@ function App() {
                                 style={{ ...styles.banBtn, backgroundColor: u.isBanned ? "#16a34a" : "#dc2626" }}
                                 title={u.isBanned ? "Unban User" : "Ban User"}
                               >
-                                {u.isBanned ? <ShieldCheck size={14} /> : <Ban size={14} />}
+                                {u.isBanned ? "Unban" : <Ban size={14} />}
                               </button>
                               <button 
                                 onClick={() => handlePermanentlyRemoveUser(u)}
