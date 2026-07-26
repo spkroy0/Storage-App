@@ -39,9 +39,8 @@ const BOOK_LIST = [
   "বাংলাদেশের কৃষি অর্থনীতি [212211]"
 ];
 
-// Admin & Moderator Email Lists
+// Permanent Admin Email List
 const ADMIN_EMAILS = ["spkroy2006@gmail.com"];
-const MODERATOR_EMAILS = ["mod1@gmail.com", "mod2@gmail.com"]; // প্রয়োজনমত ইমেইল যোগ করুন
 
 function App() {
   const [user, setUser] = useState(null);
@@ -54,6 +53,11 @@ function App() {
   
   // Public Profile View Modal State
   const [viewingProfile, setViewingProfile] = useState(null);
+
+  // Edit Note Modal States
+  const [editingNote, setEditingNote] = useState(null);
+  const [editFileName, setEditFileName] = useState("");
+  const [editPdfInfo, setEditPdfInfo] = useState("");
 
   // Upload Note States
   const [file, setFile] = useState(null);
@@ -79,7 +83,8 @@ function App() {
     address: "",
     deptRoll: "",
     photoUrl: "",
-    points: 0
+    points: 0,
+    role: "Student"
   });
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -96,14 +101,14 @@ function App() {
 
   const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
-  const getUserRole = (userEmail) => {
-    if (!userEmail) return "Student";
-    if (ADMIN_EMAILS.includes(userEmail.toLowerCase())) return "Admin";
-    if (MODERATOR_EMAILS.includes(userEmail.toLowerCase())) return "Moderator";
-    return "Student";
+  // Dynamic Role Resolver
+  const getUserRole = (uEmail, uUid) => {
+    if (uEmail && ADMIN_EMAILS.includes(uEmail.toLowerCase())) return "Admin";
+    const foundUser = allUsers.find(u => u.uid === uUid || u.email === uEmail);
+    return foundUser?.role || "Student";
   };
 
-  const currentUserRole = user ? getUserRole(user.email) : "Student";
+  const currentUserRole = user ? getUserRole(user.email, user.uid) : "Student";
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
 
@@ -122,7 +127,6 @@ function App() {
       setUser(currentUser);
       if (currentUser) {
         const userRef = doc(db, "users", currentUser.uid);
-        
         await setDoc(userRef, {
           uid: currentUser.uid,
           displayName: currentUser.displayName || currentUser.email.split("@")[0],
@@ -131,13 +135,11 @@ function App() {
       }
     });
 
-    // Notes Listener
     const notesQuery = query(collection(db, "notes"), orderBy("createdAt", "desc"));
     const unsubscribeNotes = onSnapshot(notesQuery, (snapshot) => {
       setAllNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Users Listener
     const usersQuery = query(collection(db, "users"));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       const uList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -155,7 +157,8 @@ function App() {
             address: foundMe.address || "",
             deptRoll: foundMe.deptRoll || "",
             photoUrl: foundMe.photoUrl || "",
-            points: foundMe.points || 0
+            points: foundMe.points || 0,
+            role: foundMe.role || "Student"
           });
         }
       }
@@ -168,10 +171,8 @@ function App() {
     };
   }, []);
 
-  // Leaderboard Calculated Array
   const leaderboardUsers = [...allUsers].sort((a, b) => (b.points || 0) - (a.points || 0));
 
-  // Get Leaderboard Rank helper
   const getUserRank = (targetUid) => {
     const rankIndex = leaderboardUsers.findIndex(u => u.uid === targetUid);
     return rankIndex !== -1 ? `#${rankIndex + 1}` : "N/A";
@@ -200,7 +201,31 @@ function App() {
 
   const handleLogout = () => signOut(auth);
 
-  // Profile Save / Update Handler
+  const handleToggleModerator = async (targetUser) => {
+    if (!isAdmin) return;
+    const currentRole = getUserRole(targetUser.email, targetUser.uid);
+    if (currentRole === "Admin") {
+      alert("অ্যাডমিনের রোল পরিবর্তন করা সম্ভব নয়!");
+      return;
+    }
+
+    const newRole = currentRole === "Moderator" ? "Student" : "Moderator";
+    const confirmMsg = newRole === "Moderator" 
+      ? `আপনি কি ${targetUser.displayName || targetUser.email}-কে মডারেটর বানাতে চান?` 
+      : `আপনি কি ${targetUser.displayName || targetUser.email}-কে মডারেটর থেকে স্টুডেন্ট রোল-এ ফেরত নিতে চান?`;
+
+    if (window.confirm(confirmMsg)) {
+      try {
+        const userRef = doc(db, "users", targetUser.uid);
+        await updateDoc(userRef, { role: newRole });
+        alert(`সফলভাবে রোল পরিবর্তন করা হয়েছে: ${newRole}`);
+      } catch (error) {
+        console.error("Role update failed:", error);
+        alert("রোল আপডেট করতে সমস্যা হয়েছে!");
+      }
+    }
+  };
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setSavingProfile(true);
@@ -250,7 +275,6 @@ function App() {
     }
   };
 
-  // Upload Note (+100 Points)
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !subject || !noteDate) {
@@ -286,6 +310,10 @@ function App() {
           uploaderEmail: user.email,
           likes: [],
           comments: [],
+          likedPointUsers: [],
+          commentedPointUsers: [],
+          isPendingDelete: false, // Initial status
+          deletedByModName: "",
           createdAt: new Date()
         });
 
@@ -306,24 +334,50 @@ function App() {
     }
   };
 
-  // Like Toggle Handler
+  const handleOpenEditModal = (note) => {
+    setEditingNote(note);
+    setEditFileName(note.fileName || "");
+    setEditPdfInfo(note.pdfInfo || "");
+  };
+
+  const handleSaveNoteEdit = async (e) => {
+    e.preventDefault();
+    if (!editingNote) return;
+
+    try {
+      const noteRef = doc(db, "notes", editingNote.id);
+      await updateDoc(noteRef, {
+        fileName: editFileName.trim(),
+        pdfInfo: editPdfInfo.trim()
+      });
+      alert("ফাইলের নাম সফলভাবে পরিবর্তন করা হয়েছে!");
+      setEditingNote(null);
+    } catch (error) {
+      console.error("Rename error:", error);
+      alert("ফাইলের নাম পরিবর্তন করতে ব্যর্থ হয়েছে!");
+    }
+  };
+
   const handleLikeToggle = async (note) => {
     if (!user) return;
     const noteRef = doc(db, "notes", note.id);
     const hasLiked = note.likes?.includes(user.uid);
+    const isOwnPost = note.uploaderUid === user.uid;
 
     if (hasLiked) {
       await updateDoc(noteRef, { likes: arrayRemove(user.uid) });
     } else {
       await updateDoc(noteRef, { likes: arrayUnion(user.uid) });
-      await updateUserScore(user.uid, 3);
-      if (note.uploaderUid !== user.uid) {
+
+      const rewardedLikes = note.likedPointUsers || [];
+      if (!isOwnPost && !rewardedLikes.includes(user.uid)) {
+        await updateUserScore(user.uid, 3);
         await updateUserScore(note.uploaderUid, 5);
+        await updateDoc(noteRef, { likedPointUsers: arrayUnion(user.uid) });
       }
     }
   };
 
-  // Comment Handler
   const handleAddComment = async (e, note) => {
     e.preventDefault();
     const text = commentText[note.id];
@@ -342,18 +396,81 @@ function App() {
     const noteRef = doc(db, "notes", note.id);
     await updateDoc(noteRef, { comments: arrayUnion(newComment) });
 
-    await updateUserScore(user.uid, 5);
-    if (note.uploaderUid !== user.uid) {
+    const isOwnPost = note.uploaderUid === user.uid;
+    const rewardedCommenters = note.commentedPointUsers || [];
+
+    if (!isOwnPost && !rewardedCommenters.includes(user.uid)) {
+      await updateUserScore(user.uid, 5);
       await updateUserScore(note.uploaderUid, 7);
+      await updateDoc(noteRef, { commentedPointUsers: arrayUnion(user.uid) });
     }
 
     setCommentText(prev => ({ ...prev, [note.id]: "" }));
   };
 
-  const handleDelete = async (noteId) => {
+  const handleDeleteComment = async (noteId, commentObj) => {
     if (!isModOrAdmin) return;
-    if (window.confirm("আপনি কি ফাইলটি ডিলিট করতে চান?")) {
+    if (window.confirm("আপনি কি এই কমেন্টটি মুছে ফেলতে চান?")) {
+      try {
+        const noteRef = doc(db, "notes", noteId);
+        await updateDoc(noteRef, {
+          comments: arrayRemove(commentObj)
+        });
+      } catch (error) {
+        console.error("Comment delete error:", error);
+        alert("কমেন্ট ডিলিট করতে সমস্যা হয়েছে!");
+      }
+    }
+  };
+
+  // 🛡️ MODERATOR / ADMIN DELETE LOGIC HANDLER
+  const handleDelete = async (note) => {
+    if (!isModOrAdmin) return;
+
+    if (isAdmin) {
+      // Admin can delete immediately
+      if (window.confirm("অ্যাডমিন হিসেবে আপনি কি এই ফাইলটি স্থায়ীভাবে ডিলিট করতে চান?")) {
+        await deleteDoc(doc(db, "notes", note.id));
+      }
+    } else if (currentUserRole === "Moderator") {
+      // Moderator delete requires Admin review
+      if (window.confirm("মডারেটর হিসেবে আপনি এটি ডিলিট করার অনুরোধ পাঠাতে চান? এটি অ্যাডমিন রিভিউ করার পর ডিলিট হবে।")) {
+        try {
+          const noteRef = doc(db, "notes", note.id);
+          const modName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+          await updateDoc(noteRef, {
+            isPendingDelete: true,
+            deletedByModName: modName
+          });
+          alert("ডিলিটের অনুরোধ অ্যাডমিনের কাছে পাঠানো হয়েছে!");
+        } catch (error) {
+          console.error("Mod delete request error:", error);
+          alert("অনুরোধ পাঠাতে সমস্যা হয়েছে!");
+        }
+      }
+    }
+  };
+
+  // 👑 ADMIN REVIEW: APPROVE DELETE
+  const handleAdminApproveDelete = async (noteId) => {
+    if (!isAdmin) return;
+    if (window.confirm("আপনি কি মডারেটরের এই ডিলিট অনুরোধ অনুমোদন করতে চান? পোস্টটি চিরতরে মুছে যাবে।")) {
       await deleteDoc(doc(db, "notes", noteId));
+    }
+  };
+
+  // 👑 ADMIN REVIEW: CANCEL/REJECT DELETE REQUEST
+  const handleAdminCancelDeleteRequest = async (noteId) => {
+    if (!isAdmin) return;
+    try {
+      const noteRef = doc(db, "notes", noteId);
+      await updateDoc(noteRef, {
+        isPendingDelete: false,
+        deletedByModName: ""
+      });
+      alert("ডিলিট অনুরোধ বাতিল করা হয়েছে, পোস্টটি আবার স্বাভাবিক হলো।");
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -392,8 +509,26 @@ function App() {
     ? allNotes.filter(n => n.uploaderUid === selectedDashboardUid)
     : allNotes;
 
+  // Pending delete notes list for Admin review
+  const pendingDeleteNotes = allNotes.filter(n => n.isPendingDelete);
+
   return (
     <div style={styles.container}>
+      <style>
+        {`
+          @keyframes noticeBlink {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(0.99); }
+            100% { opacity: 1; transform: scale(1); }
+          }
+          @keyframes textGlow {
+            0% { text-shadow: 0 0 5px #facc15, 0 0 10px #facc15; }
+            50% { text-shadow: 0 0 15px #ef4444, 0 0 20px #ef4444; }
+            100% { text-shadow: 0 0 5px #facc15, 0 0 10px #facc15; }
+          }
+        `}
+      </style>
+
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>KGC Math '26 Hub</h1>
@@ -477,12 +612,18 @@ function App() {
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
 
+          <div style={styles.animatedNoticeBanner}>
+            <span style={styles.noticeIcon}>📢 <strong>জরুরি নোটিশ:</strong></span>
+            <span style={styles.animatedNoticeText}>
+              "৩ জন মডারেটর লাগবে, যারা ১-৩০ আগস্ট টপ leaderboard এ থাকবে তাদের নিয়োগ দেওয়া হবে website পরিচালনা করার জন্য।"
+            </span>
+          </div>
+
           {/* ----------------- EDIT MY PROFILE VIEW ----------------- */}
           {currentView === "profile" && (
             <div style={styles.profileSection}>
               <h2 style={{ color: "#38bdf8", marginBottom: "15px" }}>✏️ আমার প্রোফাইল তথ্য</h2>
               
-              {/* 📊 MY SCORE & RANK CARD BELOW PROFILE */}
               <div style={styles.scoreSummaryBox}>
                 <div style={styles.scoreBoxItem}>
                   <span style={styles.scoreBoxLabel}>⭐ Total Points</span>
@@ -528,8 +669,8 @@ function App() {
                   </div>
 
                   <div>
-                    <label style={styles.label}>WhatsApp Number:</label>
-                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required style={styles.input} />
+                    <label style={styles.label}>WhatsApp Number (Optional):</label>
+                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
@@ -560,18 +701,42 @@ function App() {
             </div>
           )}
 
-          {/* ----------------- DASHBOARD & SCOREBOARD VIEW ----------------- */}
+          {/* ----------------- DASHBOARD VIEW ----------------- */}
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
-              {/* 🏆 LEADERBOARD */}
+              {/* 👑 ADMIN PENDING DELETION REVIEW PANEL */}
+              {isAdmin && pendingDeleteNotes.length > 0 && (
+                <div style={styles.adminReviewBox}>
+                  <h3 style={{ color: "#ef4444", margin: "0 0 10px 0", fontSize: "16px" }}>
+                    ⚠️ Admin Review: মডারেটরদের ডিলিট করা রিকোয়েস্ট ({pendingDeleteNotes.length})
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {pendingDeleteNotes.map(note => (
+                      <div key={note.id} style={styles.reviewItem}>
+                        <div>
+                          <b style={{ color: "#fff" }}>{note.fileName}</b>
+                          <p style={{ fontSize: "12px", color: "#cbd5e1", margin: "2px 0" }}>
+                            বিষয়: {note.subject} | রিকোয়েস্ট করেছেন মডারেটর: <span style={{ color: "#facc15" }}>{note.deletedByModName}</span>
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button onClick={() => handleAdminApproveDelete(note.id)} style={styles.approveBtn}>কনফার্ম ডিলিট ✅</button>
+                          <button onClick={() => handleAdminCancelDeleteRequest(note.id)} style={styles.cancelReviewBtn}>বাতিল ❌</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={styles.scoreBoardCard}>
                 <h3 style={{ color: "#fbbf24", margin: "0 0 15px 0", fontSize: "18px" }}>
                   🏆 টপ স্কোরবোর্ড (Leaderboard)
                 </h3>
                 <div style={styles.leaderboardList}>
                   {leaderboardUsers.map((u, index) => {
-                    const uRole = getUserRole(u.email);
+                    const uRole = getUserRole(u.email, u.uid);
                     return (
                       <div key={u.id} style={styles.leaderItem}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -587,14 +752,24 @@ function App() {
                             <RoleBadge role={uRole} />
                           </span>
                         </div>
-                        <span style={styles.scoreBadge}>⭐ {u.points || 0} Pts</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={styles.scoreBadge}>⭐ {u.points || 0} Pts</span>
+                          {isAdmin && uRole !== "Admin" && (
+                            <button 
+                              onClick={() => handleToggleModerator(u)}
+                              style={styles.makeModBtn}
+                              title="Toggle Moderator Role"
+                            >
+                              {uRole === "Moderator" ? "Remove Mod 🛡️" : "Make Mod 🛡️"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* USER SELECTION LIST */}
               <div style={styles.searchSection}>
                 <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>
                   👥 সকল রেজিস্টার্ড স্টুডেন্টস
@@ -607,7 +782,6 @@ function App() {
                     🌐 সকল ইউজার
                   </button>
                   {allUsers.map(u => {
-                    const uRole = getUserRole(u.email);
                     return (
                       <div key={u.id} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                         <button 
@@ -632,7 +806,6 @@ function App() {
                 </div>
               </div>
 
-              {/* USER NOTES LIST */}
               <h3 style={{ color: "#f8fafc", margin: "20px 0 15px 0" }}>
                 📁 {selectedDashboardUid ? "নির্বাচিত ইউজারের ফাইলসমূহ" : "সকল ফাইলসমূহ"} ({dashboardFilteredNotes.length})
               </h3>
@@ -645,13 +818,16 @@ function App() {
                     user={user} 
                     allUsers={allUsers}
                     isModOrAdmin={isModOrAdmin}
+                    isAdmin={isAdmin}
                     handleLikeToggle={handleLikeToggle}
                     handleAddComment={handleAddComment}
+                    handleDeleteComment={handleDeleteComment}
                     commentText={commentText}
                     setCommentText={setCommentText}
                     handleDownload={handleDownload}
                     copyLink={copyLink}
                     handleDelete={handleDelete}
+                    handleOpenEditModal={handleOpenEditModal}
                     setViewingProfile={setViewingProfile}
                     getUserRole={getUserRole}
                   />
@@ -663,7 +839,6 @@ function App() {
           {/* ----------------- HOME VIEW ----------------- */}
           {currentView === "home" && (
             <>
-              {/* SEARCH & FILTER */}
               <div style={styles.searchSection}>
                 <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
                 <div style={styles.filterGrid}>
@@ -706,7 +881,6 @@ function App() {
                 </div>
               </div>
 
-              {/* UPLOAD FORM */}
               <div style={styles.uploadCard}>
                 <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন PDF / ছবি আপলোড করুন (+100 Points)</h3>
                 <form onSubmit={handleUpload} style={styles.uploadForm}>
@@ -730,7 +904,6 @@ function App() {
                 </form>
               </div>
 
-              {/* NOTES FEED */}
               <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px" }}>📖 সকল নোটস ({filteredNotes.length})</h2>
               
               <div style={styles.notesGrid}>
@@ -741,13 +914,16 @@ function App() {
                     user={user} 
                     allUsers={allUsers}
                     isModOrAdmin={isModOrAdmin}
+                    isAdmin={isAdmin}
                     handleLikeToggle={handleLikeToggle}
                     handleAddComment={handleAddComment}
+                    handleDeleteComment={handleDeleteComment}
                     commentText={commentText}
                     setCommentText={setCommentText}
                     handleDownload={handleDownload}
                     copyLink={copyLink}
                     handleDelete={handleDelete}
+                    handleOpenEditModal={handleOpenEditModal}
                     setViewingProfile={setViewingProfile}
                     getUserRole={getUserRole}
                   />
@@ -755,6 +931,40 @@ function App() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ✏️ EDIT NOTE / RENAME MODAL */}
+      {editingNote && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <button onClick={() => setEditingNote(null)} style={styles.closeModalBtn}>✖</button>
+            <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>✏️ ফাইলের নাম ও তথ্য পরিবর্তন করুন</h3>
+            <form onSubmit={handleSaveNoteEdit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div>
+                <label style={styles.label}>ফাইলের নাম (File Name):</label>
+                <input 
+                  type="text" 
+                  value={editFileName} 
+                  onChange={(e) => setEditFileName(e.target.value)} 
+                  required 
+                  style={styles.input} 
+                />
+              </div>
+
+              <div>
+                <label style={styles.label}>PDF/নোট সংক্রান্ত তথ্য (Info):</label>
+                <input 
+                  type="text" 
+                  value={editPdfInfo} 
+                  onChange={(e) => setEditPdfInfo(e.target.value)} 
+                  style={styles.input} 
+                />
+              </div>
+
+              <button type="submit" style={styles.saveProfileBtn}>💾 সেভ করুন</button>
+            </form>
+          </div>
         </div>
       )}
 
@@ -771,10 +981,9 @@ function App() {
               />
               <h3 style={{ margin: "8px 0 4px 0", color: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                 {viewingProfile.displayName || "User Profile"}
-                <RoleBadge role={getUserRole(viewingProfile.email)} />
+                <RoleBadge role={getUserRole(viewingProfile.email, viewingProfile.uid)} />
               </h3>
 
-              {/* POINTS & LEADERBOARD RANK IN MODAL */}
               <div style={styles.modalScoreBar}>
                 <span style={styles.modalBadge}>⭐ {viewingProfile.points || 0} Points</span>
                 <span style={styles.modalBadgeRank}>🏆 Leaderboard Rank: {getUserRank(viewingProfile.uid)}</span>
@@ -802,7 +1011,6 @@ function App() {
   );
 }
 
-// 🏷️ Role Badge Component (Admin / Moderator / Student)
 function RoleBadge({ role }) {
   if (role === "Admin") {
     return <span style={styles.adminBadge}>👑 Admin</span>;
@@ -813,11 +1021,13 @@ function RoleBadge({ role }) {
   return <span style={styles.studentBadge}>Student</span>;
 }
 
-// 🎴 Reusable Note Item Component
-function NoteCardItem({ note, user, allUsers, isModOrAdmin, handleLikeToggle, handleAddComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, setViewingProfile, getUserRole }) {
+function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleLikeToggle, handleAddComment, handleDeleteComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, handleOpenEditModal, setViewingProfile, getUserRole }) {
   const hasLiked = note.likes?.includes(user?.uid);
   const uploaderProfile = allUsers.find(u => u.uid === note.uploaderUid);
-  const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email);
+  const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email, note.uploaderUid);
+
+  const isOwner = user && note.uploaderUid === user.uid;
+  const canEdit = isOwner || isModOrAdmin;
 
   return (
     <div style={styles.noteCard}>
@@ -830,11 +1040,18 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, handleLikeToggle, ha
         <h4 style={styles.fileName}>{note.fileName}</h4>
         {note.pdfInfo && <p style={styles.pdfInfoTag}>ℹ️ {note.pdfInfo}</p>}
         
+        {/* Pending Delete Alert Badge */}
+        {note.isPendingDelete && (
+          <div style={styles.pendingAlertTag}>
+            ⚠️ ডিলিট রিভিউ অপেক্ষায় (মডারেটর: {note.deletedByModName})
+          </div>
+        )}
+
         <p style={styles.uploaderText}>
           Uploaded by:{" "}
           <b 
             onClick={() => uploaderProfile && setViewingProfile(uploaderProfile)} 
-            style={{ color: "#38bdf8", cursor: "pointer", textDecoration: "underline", inlineFlex: "align-items-center" }}
+            style={{ color: "#38bdf8", cursor: "pointer", textDecoration: "underline" }}
           >
             {note.uploadedBy}
           </b>
@@ -846,10 +1063,20 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, handleLikeToggle, ha
         <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>👁️ দেখুন</a>
         <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}>📥 ডাউনলোড</button>
         <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}>🔗</button>
-        {isModOrAdmin && <button onClick={() => handleDelete(note.id)} style={styles.deleteBtn}>🗑️</button>}
+        
+        {canEdit && (
+          <button onClick={() => handleOpenEditModal(note)} style={styles.editBtn} title="Rename / Edit Note">
+            ✏️
+          </button>
+        )}
+
+        {isModOrAdmin && (
+          <button onClick={() => handleDelete(note)} style={styles.deleteBtn} title={isAdmin ? "Delete Note" : "Request Delete"}>
+            {isAdmin ? "🗑️" : "🗑️(Req)"}
+          </button>
+        )}
       </div>
 
-      {/* LIKE & COMMENT SECTION */}
       <div style={styles.interactiveBox}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
           <button 
@@ -863,10 +1090,21 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, handleLikeToggle, ha
 
         <div style={styles.commentList}>
           {note.comments?.map((c) => {
-            const commentUserRole = getUserRole(c.userEmail);
+            const commentUserRole = getUserRole(c.userEmail, c.userUid);
             return (
               <div key={c.id} style={styles.singleComment}>
-                <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
+                <div style={{ flex: 1 }}>
+                  <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
+                </div>
+                {isModOrAdmin && (
+                  <button 
+                    onClick={() => handleDeleteComment(note.id, c)} 
+                    style={styles.deleteCommentBtn}
+                    title="Delete Comment"
+                  >
+                    🗑️
+                  </button>
+                )}
               </div>
             );
           })}
@@ -913,6 +1151,21 @@ const styles = {
   mainFeed: { maxWidth: "900px", margin: "20px auto", padding: "0 15px" },
   userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#1e293b", padding: "12px 15px", borderRadius: "12px", marginBottom: "15px" },
   
+  animatedNoticeBanner: {
+    background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 50%, #854d0e 100%)",
+    border: "2px solid #facc15",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    boxShadow: "0 4px 15px rgba(239, 68, 68, 0.4)",
+    animation: "noticeBlink 2.5s infinite ease-in-out"
+  },
+  noticeIcon: { color: "#facc15", fontSize: "14px", flexShrink: 0 },
+  animatedNoticeText: { color: "#ffffff", fontSize: "13px", fontWeight: "bold", lineHeight: "1.4", animation: "textGlow 2s infinite" },
+
   studentBadge: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "6px", fontSize: "10px" },
   adminBadge: { backgroundColor: "#f59e0b", color: "#000", padding: "2px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: "bold", boxShadow: "0 0 6px rgba(245, 158, 11, 0.6)" },
   modBadge: { backgroundColor: "#8b5cf6", color: "#fff", padding: "2px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: "bold", boxShadow: "0 0 6px rgba(139, 92, 246, 0.6)" },
@@ -920,7 +1173,6 @@ const styles = {
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
 
   profileSection: { backgroundColor: "#1e293b", padding: "20px", borderRadius: "16px", marginBottom: "25px" },
-  
   scoreSummaryBox: { display: "flex", justifyContent: "space-around", alignItems: "center", backgroundColor: "#0f172a", padding: "15px", borderRadius: "12px", marginBottom: "20px", border: "1px solid rgba(56, 189, 248, 0.3)" },
   scoreBoxItem: { textAlign: "center", display: "flex", flexDirection: "column" },
   scoreBoxLabel: { fontSize: "12px", color: "#cbd5e1" },
@@ -931,10 +1183,16 @@ const styles = {
   inputGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" },
   saveProfileBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", marginTop: "10px" },
 
+  adminReviewBox: { backgroundColor: "rgba(239, 68, 68, 0.15)", border: "1px solid #ef4444", padding: "15px", borderRadius: "12px", marginBottom: "20px" },
+  reviewItem: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "10px", borderRadius: "8px", flexWrap: "wrap", gap: "8px" },
+  approveBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" },
+  cancelReviewBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+
   scoreBoardCard: { backgroundColor: "#1e293b", padding: "18px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #f59e0b" },
   leaderboardList: { display: "flex", flexDirection: "column", gap: "8px" },
-  leaderItem: { display: "flex", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "8px", fontSize: "13px", alignItems: "center" },
+  leaderItem: { display: "flex", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "8px", fontSize: "13px", alignItems: "center", flexWrap: "wrap", gap: "8px" },
   scoreBadge: { color: "#4ade80", fontWeight: "bold" },
+  makeModBtn: { backgroundColor: "#8b5cf6", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" },
 
   userListGrid: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" },
   userCardBtn: { border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px" },
@@ -959,23 +1217,25 @@ const styles = {
   subjectTag: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "5px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
   dateTag: { color: "#94a3b8", fontSize: "11px" },
   fileName: { fontSize: "14px", color: "#f8fafc", margin: "5px 0" },
-  pdfInfoTag: { backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "4px", borderRadius: "6px", fontSize: "12px" },
+  pdfInfoTag: { backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "4px", borderRadius: "6px", fontSize: "12px", marginBottom: "6px" },
+  pendingAlertTag: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", padding: "5px", borderRadius: "6px", fontSize: "11px", fontWeight: "bold", marginBottom: "6px", border: "1px solid #ef4444" },
   uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "10px", display: "flex", alignItems: "center", gap: "5px" },
   
   cardActions: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" },
   viewBtn: { flex: "1", backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "6px", borderRadius: "6px", fontSize: "12px" },
   downloadBtn: { flex: "1", backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
   copyBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
-  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "6px", borderRadius: "6px", cursor: "pointer" },
+  editBtn: { backgroundColor: "#eab308", color: "#000", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" },
+  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "6px", borderRadius: "6px", cursor: "pointer", fontSize: "11px" },
 
   interactiveBox: { borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "10px" },
   likeBtn: { color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-  commentList: { maxHeight: "80px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#0f172a", padding: "6px", borderRadius: "6px" },
-  singleComment: { fontSize: "11px", color: "#cbd5e1" },
+  commentList: { maxHeight: "95px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#0f172a", padding: "6px", borderRadius: "6px" },
+  singleComment: { fontSize: "11px", color: "#cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" },
+  deleteCommentBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "11px", opacity: 0.8 },
   commentInput: { flex: 1, padding: "6px", borderRadius: "4px", border: "1px solid #334155", backgroundColor: "#0f172a", color: "#fff", fontSize: "12px" },
   sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" },
 
-  // Modal Styles
   modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
   modalCard: { backgroundColor: "#1e293b", padding: "20px", borderRadius: "16px", maxWidth: "380px", width: "100%", position: "relative", border: "1px solid rgba(56,189,248,0.3)" },
   closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#f87171", fontSize: "16px", cursor: "pointer" },
