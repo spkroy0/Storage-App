@@ -32,6 +32,7 @@ function App() {
   const [file, setFile] = useState(null);
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
+  const [pdfInfo, setPdfInfo] = useState(""); // 📝 New PDF Short Info State
   const [allNotes, setAllNotes] = useState([]);
   const [uploading, setUploading] = useState(false);
   
@@ -127,6 +128,7 @@ function App() {
           fileName: file.name,
           subject: subject,
           date: noteDate,
+          pdfInfo: pdfInfo.trim(), // Saving short description
           fileUrl: downloadURL,
           uploadedBy: user.displayName || user.email.split('@')[0],
           uploaderUid: user.uid,
@@ -137,6 +139,7 @@ function App() {
         setFile(null);
         setSubject(BOOK_LIST[0]);
         setNoteDate("");
+        setPdfInfo("");
         alert("নোট/PDF সফলভাবে আপলোড হয়েছে!");
       } else {
         throw new Error(result.error?.message || "আপলোডে সমস্যা হয়েছে।");
@@ -166,20 +169,22 @@ function App() {
   };
 
   // 👑 Admin Control: Rename
-  const handleRename = async (noteId, currentFileName, currentSubject) => {
+  const handleRename = async (noteId, currentFileName, currentSubject, currentInfo) => {
     if (!isAdmin) {
       alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
       return;
     }
     const newFileName = prompt("নতুন ফাইলের নাম লিখুন:", currentFileName);
     const newSubject = prompt("নতুন বিষয়ের নাম লিখুন (বুকলিস্ট অনুযায়ী):", currentSubject);
+    const newInfo = prompt("নতুন PDF ইনফো লিখুন:", currentInfo || "");
 
     if (newFileName && newSubject) {
       try {
         const noteRef = doc(db, "notes", noteId);
         await updateDoc(noteRef, {
           fileName: newFileName,
-          subject: newSubject
+          subject: newSubject,
+          pdfInfo: newInfo
         });
         alert("ফাইলের তথ্য আপডেট করা হয়েছে!");
       } catch (error) {
@@ -207,17 +212,14 @@ function App() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      // Fallback in case of CORS restriction
       window.open(fileUrl, "_blank");
     }
   };
 
-  // Filter Book Suggestions for Search Bar
   const suggestedBooks = BOOK_LIST.filter(book => 
     book.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filter Notes based on Selected Subject or Date
   const filteredNotes = allNotes.filter(note => {
     const matchesSubject = selectedSubjectFilter 
       ? note.subject.toLowerCase() === selectedSubjectFilter.toLowerCase()
@@ -232,6 +234,16 @@ function App() {
 
   return (
     <div style={styles.container}>
+      {/* Dynamic RGB Glow Animation Style Injection */}
+      <style>{`
+        @keyframes rgbAnimation {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+
+      {/* HEADER WITH RGB GLOW */}
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>KGC Math '26 Hub</h1>
@@ -248,14 +260,16 @@ function App() {
       {!user ? (
         <div style={styles.heroSection}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#1e293b", marginBottom: "10px" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫ (২০২৬ ব্যাচ)! 📚</h2>
-            <p style={{ color: "#64748b", lineHeight: "1.6" }}>
+            <h2 style={{ color: "#ffffff", marginBottom: "10px", textShadow: "0 0 10px rgba(0,255,200,0.5)" }}>
+              স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫ (২০২৬ ব্যাচ)! 📚
+            </h2>
+            <p style={{ color: "#cbd5e1", lineHeight: "1.6" }}>
               এখানে ক্লাসের বিষয়ভিত্তিক নোট এবং ফাইল আপলোড ও শেয়ার করা যাবে। সাইটে প্রবেশ করতে লগইন করুন।
             </p>
           </div>
 
           <div style={styles.authCard}>
-            <h3 style={{ marginBottom: "15px", color: "#0f172a" }}>অ্যাকাউন্টে প্রবেশ করুন</h3>
+            <h3 style={{ marginBottom: "15px", color: "#f8fafc" }}>অ্যাকাউন্টে প্রবেশ করুন</h3>
             
             <div style={styles.tabContainer}>
               <button 
@@ -272,7 +286,7 @@ function App() {
               </button>
             </div>
 
-            {authError && <p style={{ color: "#ef4444", fontSize: "13px" }}>{authError}</p>}
+            {authError && <p style={{ color: "#f87171", fontSize: "13px" }}>{authError}</p>}
 
             {authMode === "google" && (
               <button onClick={handleGoogleLogin} style={styles.googleBtn}>
@@ -303,7 +317,7 @@ function App() {
                 </button>
                 <p 
                   onClick={() => setIsSignUp(!isSignUp)} 
-                  style={{ cursor: "pointer", color: "#2563eb", marginTop: "10px", fontSize: "13px" }}
+                  style={{ cursor: "pointer", color: "#38bdf8", marginTop: "10px", fontSize: "13px" }}
                 >
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
                 </p>
@@ -315,7 +329,7 @@ function App() {
         <div style={styles.mainFeed}>
           <div style={styles.userBar}>
             <div>
-              <span style={{ fontWeight: "bold", color: "#1e293b" }}>👤 {user.displayName || user.email}</span>
+              <span style={{ fontWeight: "bold", color: "#f8fafc" }}>👤 {user.displayName || user.email}</span>
               <span style={isAdmin ? styles.adminBadge : styles.badge}>
                 {isAdmin ? "👑 Admin" : "Student"}
               </span>
@@ -323,12 +337,11 @@ function App() {
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
 
-          {/* 🔍 SEARCH BAR WITH AUTO-SUGGESTION & CALENDAR FILTER */}
+          {/* 🔍 SEARCH & FILTER */}
           <div style={styles.searchSection}>
-            <h3 style={{ color: "#0f172a", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
+            <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
             
             <div style={styles.filterGrid}>
-              {/* Auto suggestion Search Bar */}
               <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
                 <input 
                   type="text" 
@@ -342,7 +355,6 @@ function App() {
                   style={styles.searchInput}
                 />
 
-                {/* Suggestions Dropdown */}
                 {showSuggestions && searchQuery.trim() !== "" && (
                   <div style={styles.suggestionBox}>
                     {suggestedBooks.length === 0 ? (
@@ -366,7 +378,6 @@ function App() {
                 )}
               </div>
 
-              {/* Calendar Filter */}
               <div style={{ flex: 1, minWidth: "150px" }}>
                 <input 
                   type="date" 
@@ -378,10 +389,9 @@ function App() {
               </div>
             </div>
 
-            {/* Active Filters Display */}
             {(selectedSubjectFilter || selectedDateFilter) && (
               <div style={styles.activeFilterTag}>
-                <span>ফিল্টার: </span>
+                <span style={{ color: "#cbd5e1" }}>ফিল্টার: </span>
                 {selectedSubjectFilter && <span style={styles.filterBadge}>📖 {selectedSubjectFilter}</span>}
                 {selectedDateFilter && <span style={styles.filterBadge}>🗓️ {selectedDateFilter}</span>}
                 <button 
@@ -398,13 +408,12 @@ function App() {
             )}
           </div>
 
-          {/* 📌 UPLOAD SECTION */}
+          {/* 📌 UPLOAD SECTION WITH PDF INFO FIELD */}
           <div style={styles.uploadCard}>
-            <h3 style={{ color: "#0f172a", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
+            <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
             <form onSubmit={handleUpload} style={styles.uploadForm}>
               <div style={styles.inputGroup}>
                 
-                {/* Booklist Dropdown */}
                 <select 
                   value={subject} 
                   onChange={(e) => setSubject(e.target.value)}
@@ -412,7 +421,7 @@ function App() {
                   required
                 >
                   {BOOK_LIST.map((item, index) => (
-                    <option key={index} value={item}>
+                    <option key={index} value={item} style={{ backgroundColor: "#1e293b", color: "#fff" }}>
                       {item}
                     </option>
                   ))}
@@ -427,14 +436,23 @@ function App() {
                 />
               </div>
 
+              {/* 📝 NEW INPUT FIELD: SHORT DESCRIPTION / WRITE PDF INFO */}
+              <input 
+                type="text" 
+                placeholder="write pdf info" 
+                value={pdfInfo}
+                onChange={(e) => setPdfInfo(e.target.value)}
+                style={{ ...styles.input, marginTop: "12px" }}
+              />
+
               <input 
                 type="file" 
                 accept=".pdf,.png,.jpg,.jpeg"
                 onChange={(e) => setFile(e.target.files[0])} 
                 required
-                style={{ margin: "15px 0" }}
+                style={{ margin: "15px 0", color: "#cbd5e1" }}
               />
-              <small style={{ color: "#64748b", marginBottom: "15px", display: "block" }}>
+              <small style={{ color: "#94a3b8", marginBottom: "15px", display: "block" }}>
                 * সর্বোচ্চ ফাইল সাইজ: <b>30 MB</b> (PDF/Image)
               </small>
               
@@ -449,24 +467,32 @@ function App() {
           </div>
 
           {/* 📖 NOTES GRID */}
-          <h2 style={{ color: "#0f172a", marginBottom: "15px", fontSize: "20px" }}>
+          <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px", textShadow: "0 0 10px rgba(56,189,248,0.3)" }}>
             📖 ক্লাসের নোটস ({filteredNotes.length})
           </h2>
           
           <div style={styles.notesGrid}>
             {filteredNotes.length === 0 ? (
-              <p style={{ color: "#64748b" }}>কোনো নোট পাওয়া যায়নি।</p>
+              <p style={{ color: "#94a3b8" }}>কোনো নোট পাওয়া যায়নি।</p>
             ) : (
               filteredNotes.map((n) => (
                 <div key={n.id} style={styles.noteCard}>
                   <div>
-                    {/* Mobile Friendly Card Header */}
+                    {/* Header: Subject & Date Tags */}
                     <div style={styles.cardHeader}>
                       <span style={styles.subjectTag}>📖 {n.subject}</span>
                       <span style={styles.dateTag}>🗓️ {n.date}</span>
                     </div>
 
                     <h4 style={styles.fileName}>{n.fileName}</h4>
+
+                    {/* Display PDF Short Info if available */}
+                    {n.pdfInfo && (
+                      <p style={styles.pdfInfoTag}>
+                        ℹ️ {n.pdfInfo}
+                      </p>
+                    )}
+
                     <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
                   </div>
                   
@@ -487,11 +513,10 @@ function App() {
                       🔗
                     </button>
 
-                    {/* 👑 Admin Actions */}
                     {isAdmin && (
                       <>
                         <button 
-                          onClick={() => handleRename(n.id, n.fileName, n.subject)} 
+                          onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
                           style={styles.renameBtn}
                           title="Rename / Edit"
                         >
@@ -516,9 +541,8 @@ function App() {
 
       {/* FOOTER */}
       <footer style={styles.footer}>
-        <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
+        <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8", fontWeight: "bold"}}>Anondo</a></p>
         
-        {/* Contact Information */}
         <div style={styles.contactContainer}>
           <div style={styles.contactItem}>
             <a 
@@ -527,7 +551,7 @@ function App() {
               rel="noopener noreferrer"
               style={styles.iconLink}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#22c55e">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.51 1.039 3.531l-.683 2.493 2.562-.672c.983.537 2.109.845 3.303.846 3.18 0 5.767-2.586 5.768-5.766.001-3.181-2.585-5.798-5.766-5.798zm3.383 8.163c-.141.397-.822.771-1.134.818-.313.048-.718.082-2.316-.543-1.898-.742-3.111-2.679-3.206-2.806-.095-.127-.768-1.021-.768-1.948 0-.927.487-1.381.66-1.571.173-.19.378-.238.504-.238.126 0 .252.001.362.007.116.006.273-.044.425.321.157.378.536 1.309.584 1.405.048.096.08.209.016.335-.064.126-.096.205-.189.315-.095.109-.199.244-.284.328-.096.095-.196.198-.085.388.111.19.493.813 1.058 1.317.727.648 1.341.849 1.531.944.19.095.301.079.412-.048.111-.127.473-.552.6-.741.127-.19.252-.158.425-.095.173.063 1.103.52 1.293.615.19.095.316.142.363.221.047.079.047.458-.094.855z"/>
                 <path d="M12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.178L1.8 22.2l5.143-1.587C8.384 21.492 10.125 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.71 0-3.32-.472-4.707-1.291l-.337-.2-3.048.941.956-2.972-.224-.352C3.785 14.73 3.2 13.42 3.2 12c0-4.852 3.948-8.8 8.8-8.8s8.8 3.948 8.8 8.8-3.948 8.8-8.8 8.8z"/>
               </svg>
@@ -542,7 +566,7 @@ function App() {
               rel="noopener noreferrer"
               style={styles.iconLink}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#38bdf8">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
               </svg>
               <span style={styles.fbText}>Facebook Profile</span>
@@ -554,67 +578,141 @@ function App() {
   );
 }
 
+// 🎨 RGB Light Dark Glow Theme Styles
 const styles = {
-  container: { fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", backgroundColor: "#f8fafc", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "space-between" },
-  header: { backgroundColor: "#ffffff", padding: "15px 5%", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", borderBottom: "1px solid #e2e8f0" },
-  logo: { fontSize: "20px", color: "#2563eb", margin: 0, fontWeight: "bold" },
-  subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
-  branding: { fontSize: "12px", fontWeight: "600", color: "#475569" },
-  brandLink: { color: "#16a34a", textDecoration: "none", fontWeight: "bold" },
+  container: {
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    background: "linear-gradient(-45deg, #0f172a, #1e1b4b, #0f2027, #111827)",
+    backgroundSize: "400% 400%",
+    animation: "rgbAnimation 15s ease infinite",
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    justify: "space-between",
+    color: "#f8fafc"
+  },
+  header: {
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    backdropFilter: "blur(12px)",
+    padding: "15px 5%",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid rgba(56, 189, 248, 0.2)",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)"
+  },
+  logo: { fontSize: "20px", color: "#38bdf8", margin: 0, fontWeight: "bold", textShadow: "0 0 10px rgba(56,189,248,0.5)" },
+  subLogo: { fontSize: "11px", color: "#94a3b8", margin: 0 },
+  branding: { fontSize: "12px", fontWeight: "600", color: "#cbd5e1" },
+  brandLink: { color: "#4ade80", textDecoration: "none", fontWeight: "bold" },
+  
   heroSection: { maxWidth: "450px", margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
-  authCard: { backgroundColor: "#ffffff", padding: "25px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)", textAlign: "center" },
+  authCard: { 
+    backgroundColor: "rgba(30, 41, 59, 0.7)", 
+    backdropFilter: "blur(16px)",
+    padding: "25px", 
+    borderRadius: "16px", 
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.5)", 
+    textAlign: "center" 
+  },
   tabContainer: { display: "flex", justifyContent: "center", marginBottom: "20px", gap: "10px" },
-  tab: { padding: "8px 20px", border: "none", background: "#f1f5f9", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
-  activeTab: { background: "#2563eb", color: "#fff" },
-  googleBtn: { width: "100%", padding: "12px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
+  tab: { padding: "8px 20px", border: "none", background: "#334155", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
+  activeTab: { background: "#0284c7", color: "#fff", boxShadow: "0 0 10px rgba(2,132,199,0.5)" },
+  googleBtn: { width: "100%", padding: "12px", backgroundColor: "#0284c7", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   form: { display: "flex", flexDirection: "column", gap: "12px" },
-  input: { padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", backgroundColor: "#fff", fontSize: "14px" },
+  input: { 
+    padding: "12px", 
+    borderRadius: "8px", 
+    border: "1px solid rgba(255,255,255,0.15)", 
+    outline: "none", 
+    backgroundColor: "rgba(15, 23, 42, 0.6)", 
+    color: "#fff",
+    fontSize: "14px" 
+  },
   submitBtn: { padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
+  
   mainFeed: { maxWidth: "900px", margin: "20px auto", padding: "0 15px", width: "100%", boxSizing: "border-box" },
-  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "12px 15px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" },
-  badge: { backgroundColor: "#dbeafe", color: "#1e40af", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px" },
-  adminBadge: { backgroundColor: "#fef3c7", color: "#d97706", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px", fontWeight: "bold" },
+  userBar: { 
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    backgroundColor: "rgba(30, 41, 59, 0.6)", 
+    backdropFilter: "blur(12px)",
+    padding: "12px 15px", 
+    borderRadius: "12px", 
+    marginBottom: "20px", 
+    border: "1px solid rgba(255, 255, 255, 0.1)" 
+  },
+  badge: { backgroundColor: "#0284c7", color: "#fff", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px" },
+  adminBadge: { backgroundColor: "#f59e0b", color: "#000", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px", fontWeight: "bold" },
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   
-  // Search & Filter Styles (Mobile Responsive)
-  searchSection: { backgroundColor: "#fff", padding: "18px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #e2e8f0" },
+  // Search Section
+  searchSection: { 
+    backgroundColor: "rgba(30, 41, 59, 0.6)", 
+    backdropFilter: "blur(12px)",
+    padding: "18px", 
+    borderRadius: "16px", 
+    marginBottom: "20px", 
+    border: "1px solid rgba(255, 255, 255, 0.1)" 
+  },
   filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
-  searchInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "13px", boxSizing: "border-box" },
-  dateFilterInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "13px", boxSizing: "border-box" },
-  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 10, maxHeight: "200px", overflowY: "auto", marginTop: "4px" },
-  suggestionItem: { padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #f1f5f9", fontSize: "13px", color: "#1e293b" },
+  searchInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", outline: "none", fontSize: "13px", boxSizing: "border-box", backgroundColor: "rgba(15, 23, 42, 0.6)", color: "#fff" },
+  dateFilterInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", outline: "none", fontSize: "13px", boxSizing: "border-box", backgroundColor: "rgba(15, 23, 42, 0.6)", color: "#fff" },
+  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", zIndex: 10, maxHeight: "200px", overflowY: "auto", marginTop: "4px" },
+  suggestionItem: { padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "13px", color: "#cbd5e1" },
   activeFilterTag: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "12px" },
-  filterBadge: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" },
-  resetBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  filterBadge: { backgroundColor: "#0284c7", color: "#fff", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" },
+  resetBtn: { backgroundColor: "rgba(239,68,68,0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
 
-  uploadCard: { backgroundColor: "#fff", padding: "20px", borderRadius: "16px", marginBottom: "25px", border: "1px solid #e2e8f0" },
+  // Upload Card
+  uploadCard: { 
+    backgroundColor: "rgba(30, 41, 59, 0.6)", 
+    backdropFilter: "blur(12px)",
+    padding: "20px", 
+    borderRadius: "16px", 
+    marginBottom: "25px", 
+    border: "1px solid rgba(255, 255, 255, 0.1)" 
+  },
   uploadForm: { display: "flex", flexDirection: "column" },
   inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
-  uploadBtn: { backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" },
+  uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", boxShadow: "0 0 10px rgba(2,132,199,0.4)" },
   
-  // Note Card Styles (Optimized for Mobile)
+  // Note Cards Grid (Glow Border)
   notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" },
-  noteCard: { backgroundColor: "#fff", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  noteCard: { 
+    backgroundColor: "rgba(30, 41, 59, 0.7)", 
+    backdropFilter: "blur(12px)",
+    padding: "16px", 
+    borderRadius: "12px", 
+    border: "1px solid rgba(56, 189, 248, 0.2)", 
+    boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+    display: "flex", 
+    flexDirection: "column", 
+    justifyContent: "space-between" 
+  },
   cardHeader: { display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start", marginBottom: "12px" },
-  subjectTag: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", lineHeight: "1.4", wordBreak: "break-word", width: "100%", boxSizing: "border-box" },
-  dateTag: { backgroundColor: "#f1f5f9", color: "#475569", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" },
-  fileName: { fontSize: "14px", color: "#1e293b", margin: "5px 0 5px 0", wordBreak: "break-all", fontWeight: "600" },
-  uploaderText: { fontSize: "12px", color: "#94a3b8", marginBottom: "15px" },
+  subjectTag: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", lineHeight: "1.4", wordBreak: "break-word", width: "100%", boxSizing: "border-box", border: "1px solid rgba(56,189,248,0.3)" },
+  dateTag: { backgroundColor: "rgba(255,255,255,0.05)", color: "#94a3b8", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" },
+  fileName: { fontSize: "14px", color: "#f8fafc", margin: "5px 0", wordBreak: "break-all", fontWeight: "600" },
+  pdfInfoTag: { backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "6px 10px", borderRadius: "6px", fontSize: "12px", margin: "6px 0", border: "1px solid rgba(52,211,153,0.3)" },
+  uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "15px" },
   
   cardActions: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" },
   viewBtn: { flex: "1 1 auto", backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
   downloadBtn: { flex: "1 1 auto", backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" },
-  copyBtn: { backgroundColor: "#f1f5f9", color: "#334155", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-  renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
-  deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
+  copyBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+  renameBtn: { backgroundColor: "rgba(245, 158, 11, 0.2)", color: "#fbbf24", border: "1px solid #f59e0b", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
+  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
 
-  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "12px", color: "#64748b" },
+  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "rgba(15, 23, 42, 0.8)", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "12px", color: "#94a3b8" },
   contactContainer: { marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "15px", flexWrap: "wrap" },
   contactItem: { display: "flex", alignItems: "center", gap: "6px" },
   iconLink: { display: "inline-flex", alignItems: "center", gap: "5px", textDecoration: "none" },
-  phoneText: { fontSize: "12px", color: "#334155", fontWeight: "500" },
-  fbText: { fontSize: "12px", color: "#1877F2", fontWeight: "600" }
+  phoneText: { fontSize: "12px", color: "#cbd5e1", fontWeight: "500" },
+  fbText: { fontSize: "12px", color: "#38bdf8", fontWeight: "600" }
 };
 
 export default App;
