@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import "./App.css";
 import { auth, provider, db } from "./firebase";
 import { 
   signInWithPopup, 
@@ -308,11 +309,13 @@ function App() {
           uploadedBy: uName,
           uploaderUid: user.uid,
           uploaderEmail: user.email,
-          likes: [],
+          loves: [],
+          cares: [],
+          lovedPointUsers: [],
+          caredPointUsers: [],
           comments: [],
-          likedPointUsers: [],
           commentedPointUsers: [],
-          isPendingDelete: false, // Initial status
+          isPendingDelete: false,
           deletedByModName: "",
           createdAt: new Date()
         });
@@ -358,22 +361,41 @@ function App() {
     }
   };
 
-  const handleLikeToggle = async (note) => {
+  // ❤️ LOVE and 🥰 CARE REACTION TOGGLE
+  const handleReactionToggle = async (note, type) => {
     if (!user) return;
     const noteRef = doc(db, "notes", note.id);
-    const hasLiked = note.likes?.includes(user.uid);
     const isOwnPost = note.uploaderUid === user.uid;
 
-    if (hasLiked) {
-      await updateDoc(noteRef, { likes: arrayRemove(user.uid) });
-    } else {
-      await updateDoc(noteRef, { likes: arrayUnion(user.uid) });
-
-      const rewardedLikes = note.likedPointUsers || [];
-      if (!isOwnPost && !rewardedLikes.includes(user.uid)) {
-        await updateUserScore(user.uid, 3);
-        await updateUserScore(note.uploaderUid, 5);
-        await updateDoc(noteRef, { likedPointUsers: arrayUnion(user.uid) });
+    if (type === "love") {
+      const hasLoved = note.loves?.includes(user.uid);
+      if (hasLoved) {
+        await updateDoc(noteRef, { loves: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(noteRef, { 
+          loves: arrayUnion(user.uid),
+          cares: arrayRemove(user.uid) 
+        });
+        if (!isOwnPost && !note.lovedPointUsers?.includes(user.uid)) {
+          await updateUserScore(user.uid, 3);
+          await updateUserScore(note.uploaderUid, 5);
+          await updateDoc(noteRef, { lovedPointUsers: arrayUnion(user.uid) });
+        }
+      }
+    } else if (type === "care") {
+      const hasCared = note.cares?.includes(user.uid);
+      if (hasCared) {
+        await updateDoc(noteRef, { cares: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(noteRef, { 
+          cares: arrayUnion(user.uid),
+          loves: arrayRemove(user.uid) 
+        });
+        if (!isOwnPost && !note.caredPointUsers?.includes(user.uid)) {
+          await updateUserScore(user.uid, 3);
+          await updateUserScore(note.uploaderUid, 5);
+          await updateDoc(noteRef, { caredPointUsers: arrayUnion(user.uid) });
+        }
       }
     }
   };
@@ -423,17 +445,15 @@ function App() {
     }
   };
 
-  // 🛡️ MODERATOR / ADMIN DELETE LOGIC HANDLER
+  // MODERATOR / ADMIN DELETE LOGIC HANDLER
   const handleDelete = async (note) => {
     if (!isModOrAdmin) return;
 
     if (isAdmin) {
-      // Admin can delete immediately
       if (window.confirm("অ্যাডমিন হিসেবে আপনি কি এই ফাইলটি স্থায়ীভাবে ডিলিট করতে চান?")) {
         await deleteDoc(doc(db, "notes", note.id));
       }
     } else if (currentUserRole === "Moderator") {
-      // Moderator delete requires Admin review
       if (window.confirm("মডারেটর হিসেবে আপনি এটি ডিলিট করার অনুরোধ পাঠাতে চান? এটি অ্যাডমিন রিভিউ করার পর ডিলিট হবে।")) {
         try {
           const noteRef = doc(db, "notes", note.id);
@@ -451,7 +471,6 @@ function App() {
     }
   };
 
-  // 👑 ADMIN REVIEW: APPROVE DELETE
   const handleAdminApproveDelete = async (noteId) => {
     if (!isAdmin) return;
     if (window.confirm("আপনি কি মডারেটরের এই ডিলিট অনুরোধ অনুমোদন করতে চান? পোস্টটি চিরতরে মুছে যাবে।")) {
@@ -459,7 +478,6 @@ function App() {
     }
   };
 
-  // 👑 ADMIN REVIEW: CANCEL/REJECT DELETE REQUEST
   const handleAdminCancelDeleteRequest = async (noteId) => {
     if (!isAdmin) return;
     try {
@@ -509,26 +527,10 @@ function App() {
     ? allNotes.filter(n => n.uploaderUid === selectedDashboardUid)
     : allNotes;
 
-  // Pending delete notes list for Admin review
   const pendingDeleteNotes = allNotes.filter(n => n.isPendingDelete);
 
   return (
     <div style={styles.container}>
-      <style>
-        {`
-          @keyframes noticeBlink {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.85; transform: scale(0.99); }
-            100% { opacity: 1; transform: scale(1); }
-          }
-          @keyframes textGlow {
-            0% { text-shadow: 0 0 5px #facc15, 0 0 10px #facc15; }
-            50% { text-shadow: 0 0 15px #ef4444, 0 0 20px #ef4444; }
-            100% { text-shadow: 0 0 5px #facc15, 0 0 10px #facc15; }
-          }
-        `}
-      </style>
-
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>KGC Math '26 Hub</h1>
@@ -619,7 +621,7 @@ function App() {
             </span>
           </div>
 
-          {/* ----------------- EDIT MY PROFILE VIEW ----------------- */}
+          {/* EDIT MY PROFILE VIEW */}
           {currentView === "profile" && (
             <div style={styles.profileSection}>
               <h2 style={{ color: "#38bdf8", marginBottom: "15px" }}>✏️ আমার প্রোফাইল তথ্য</h2>
@@ -701,11 +703,10 @@ function App() {
             </div>
           )}
 
-          {/* ----------------- DASHBOARD VIEW ----------------- */}
+          {/* DASHBOARD VIEW */}
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
-              {/* 👑 ADMIN PENDING DELETION REVIEW PANEL */}
               {isAdmin && pendingDeleteNotes.length > 0 && (
                 <div style={styles.adminReviewBox}>
                   <h3 style={{ color: "#ef4444", margin: "0 0 10px 0", fontSize: "16px" }}>
@@ -819,7 +820,7 @@ function App() {
                     allUsers={allUsers}
                     isModOrAdmin={isModOrAdmin}
                     isAdmin={isAdmin}
-                    handleLikeToggle={handleLikeToggle}
+                    handleReactionToggle={handleReactionToggle}
                     handleAddComment={handleAddComment}
                     handleDeleteComment={handleDeleteComment}
                     commentText={commentText}
@@ -836,7 +837,7 @@ function App() {
             </div>
           )}
 
-          {/* ----------------- HOME VIEW ----------------- */}
+          {/* HOME VIEW */}
           {currentView === "home" && (
             <>
               <div style={styles.searchSection}>
@@ -915,7 +916,7 @@ function App() {
                     allUsers={allUsers}
                     isModOrAdmin={isModOrAdmin}
                     isAdmin={isAdmin}
-                    handleLikeToggle={handleLikeToggle}
+                    handleReactionToggle={handleReactionToggle}
                     handleAddComment={handleAddComment}
                     handleDeleteComment={handleDeleteComment}
                     commentText={commentText}
@@ -934,7 +935,7 @@ function App() {
         </div>
       )}
 
-      {/* ✏️ EDIT NOTE / RENAME MODAL */}
+      {/* EDIT NOTE / RENAME MODAL */}
       {editingNote && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
@@ -968,7 +969,7 @@ function App() {
         </div>
       )}
 
-      {/* 🔍 PUBLIC PROFILE VIEW MODAL */}
+      {/* PUBLIC PROFILE VIEW MODAL */}
       {viewingProfile && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
@@ -1021,8 +1022,10 @@ function RoleBadge({ role }) {
   return <span style={styles.studentBadge}>Student</span>;
 }
 
-function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleLikeToggle, handleAddComment, handleDeleteComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, handleOpenEditModal, setViewingProfile, getUserRole }) {
-  const hasLiked = note.likes?.includes(user?.uid);
+function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleReactionToggle, handleAddComment, handleDeleteComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, handleOpenEditModal, setViewingProfile, getUserRole }) {
+  const hasLoved = note.loves?.includes(user?.uid);
+  const hasCared = note.cares?.includes(user?.uid);
+
   const uploaderProfile = allUsers.find(u => u.uid === note.uploaderUid);
   const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email, note.uploaderUid);
 
@@ -1040,7 +1043,6 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleLikeT
         <h4 style={styles.fileName}>{note.fileName}</h4>
         {note.pdfInfo && <p style={styles.pdfInfoTag}>ℹ️ {note.pdfInfo}</p>}
         
-        {/* Pending Delete Alert Badge */}
         {note.isPendingDelete && (
           <div style={styles.pendingAlertTag}>
             ⚠️ ডিলিট রিভিউ অপেক্ষায় (মডারেটর: {note.deletedByModName})
@@ -1078,14 +1080,35 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleLikeT
       </div>
 
       <div style={styles.interactiveBox}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+          
+          {/* ❤️ LOVE BUTTON WITH ANIMATION CLASS */}
           <button 
-            onClick={() => handleLikeToggle(note)} 
-            style={{ ...styles.likeBtn, backgroundColor: hasLiked ? "#0284c7" : "#334155" }}
+            onClick={() => handleReactionToggle(note, "love")} 
+            className={hasLoved ? "reaction-btn active-pop" : "reaction-btn"}
+            style={{ 
+              ...styles.reactionStyleBtn, 
+              backgroundColor: hasLoved ? "#ef4444" : "#334155",
+              border: hasLoved ? "1px solid #f87171" : "none"
+            }}
           >
-            👍 {note.likes?.length || 0} Likes
+            ❤️ {note.loves?.length || 0}
           </button>
-          <span style={{ fontSize: "11px", color: "#cbd5e1" }}>💬 {note.comments?.length || 0} Comments</span>
+
+          {/* 🥰 CARE BUTTON WITH ANIMATION CLASS */}
+          <button 
+            onClick={() => handleReactionToggle(note, "care")} 
+            className={hasCared ? "reaction-btn active-pop" : "reaction-btn"}
+            style={{ 
+              ...styles.reactionStyleBtn, 
+              backgroundColor: hasCared ? "#f59e0b" : "#334155",
+              border: hasCared ? "1px solid #fbbf24" : "none"
+            }}
+          >
+            🥰 {note.cares?.length || 0}
+          </button>
+
+          <span style={{ fontSize: "11px", color: "#cbd5e1", marginLeft: "auto" }}>💬 {note.comments?.length || 0} Comments</span>
         </div>
 
         <div style={styles.commentList}>
@@ -1229,7 +1252,7 @@ const styles = {
   deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "6px", borderRadius: "6px", cursor: "pointer", fontSize: "11px" },
 
   interactiveBox: { borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "10px" },
-  likeBtn: { color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+  reactionStyleBtn: { color: "#fff", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: "bold" },
   commentList: { maxHeight: "95px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#0f172a", padding: "6px", borderRadius: "6px" },
   singleComment: { fontSize: "11px", color: "#cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" },
   deleteCommentBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "11px", opacity: 0.8 },
