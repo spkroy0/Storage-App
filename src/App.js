@@ -7,7 +7,18 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from "firebase/auth";
-import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  doc, 
+  deleteDoc, 
+  updateDoc, 
+  setDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
 
 // বুকলিস্ট অনুযায়ী বিষয়সমূহের তালিকা (অনার্স ১ম বর্ষ, শিক্ষাবর্ষ: ২০২৪-২০২৫)
 const BOOK_LIST = [
@@ -29,24 +40,35 @@ const BOOK_LIST = [
 
 function App() {
   const [user, setUser] = useState(null);
+  const [currentView, setCurrentView] = useState("home"); // 'home' or 'dashboard'
+  
+  // Upload States
   const [file, setFile] = useState(null);
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
-  const [pdfInfo, setPdfInfo] = useState(""); // 📝 New PDF Short Info State
+  const [pdfInfo, setPdfInfo] = useState(""); 
   const [allNotes, setAllNotes] = useState([]);
   const [uploading, setUploading] = useState(false);
   
+  // Auth States
   const [authMode, setAuthMode] = useState("google");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // 🔑 Retype Password State
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
+
+  // Online Active Users Tracking
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("");
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // Dashboard Search State (Search Notes by User Name)
+  const [dashboardUserSearch, setDashboardUserSearch] = useState("");
 
   // ImgBB API Key
   const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
@@ -60,20 +82,35 @@ function App() {
   const FACEBOOK_URL = "https://www.facebook.com/spk.roy.02/";
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    // Auth Observer & Active User Tracker
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        const userRef = doc(db, "activeUsers", currentUser.uid);
+        await setDoc(userRef, {
+          displayName: currentUser.displayName || currentUser.email.split("@")[0],
+          email: currentUser.email,
+          lastActive: serverTimestamp()
+        }, { merge: true });
+      }
     });
 
+    // Listen to Notes collection
     const notesQuery = query(collection(db, "notes"), orderBy("createdAt", "desc"));
     const unsubscribeNotes = onSnapshot(notesQuery, (snapshot) => {
       setAllNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      console.error("Firestore error:", error);
+    });
+
+    // Listen to Active Online Users Collection
+    const activeUsersQuery = query(collection(db, "activeUsers"));
+    const unsubscribeActiveUsers = onSnapshot(activeUsersQuery, (snapshot) => {
+      setOnlineUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeNotes();
+      unsubscribeActiveUsers();
     };
   }, []);
 
@@ -84,7 +121,12 @@ function App() {
   const handleEmailAuth = (e) => {
     e.preventDefault();
     setAuthError("");
+
     if (isSignUp) {
+      if (password !== confirmPassword) {
+        setAuthError("পাসওয়ার্ড দুটি মিলছে না! Retype password সঠিকভাবে দিন।");
+        return;
+      }
       createUserWithEmailAndPassword(auth, email, password)
         .catch(err => setAuthError(err.message));
     } else {
@@ -128,7 +170,7 @@ function App() {
           fileName: file.name,
           subject: subject,
           date: noteDate,
-          pdfInfo: pdfInfo.trim(), // Saving short description
+          pdfInfo: pdfInfo.trim(),
           fileUrl: downloadURL,
           uploadedBy: user.displayName || user.email.split('@')[0],
           uploaderUid: user.uid,
@@ -232,23 +274,55 @@ function App() {
     return matchesSubject && matchesDate;
   });
 
+  // Filter notes for Dashboard View (by searched user name)
+  const dashboardFilteredNotes = allNotes.filter(note => {
+    if (!dashboardUserSearch.trim()) return true;
+    return note.uploadedBy.toLowerCase().includes(dashboardUserSearch.toLowerCase());
+  });
+
+  // Unique Uploader List for Dashboard Shortcuts
+  const uploaderList = Array.from(new Set(allNotes.map(n => n.uploadedBy)));
+
   return (
     <div style={styles.container}>
-      {/* Dynamic RGB Glow Animation Style Injection */}
       <style>{`
         @keyframes rgbAnimation {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes pulseDot {
+          0% { transform: scale(0.95); boxShadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+          70% { transform: scale(1); boxShadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+          100% { transform: scale(0.95); boxShadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
       `}</style>
 
-      {/* HEADER WITH RGB GLOW */}
+      {/* HEADER WITH VIEW NAVIGATION */}
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>KGC Math '26 Hub</h1>
           <p style={styles.subLogo}>Kurigram Govt. College • Mathematics Dept.</p>
         </div>
+
+        {/* View Switcher Tabs */}
+        {user && (
+          <div style={styles.navTabs}>
+            <button 
+              onClick={() => setCurrentView("home")} 
+              style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}
+            >
+              🏠 Home
+            </button>
+            <button 
+              onClick={() => setCurrentView("dashboard")} 
+              style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}
+            >
+              📊 Dashboard
+            </button>
+          </div>
+        )}
+
         <div style={styles.branding}>
           Designed by{" "}
           <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>
@@ -286,7 +360,7 @@ function App() {
               </button>
             </div>
 
-            {authError && <p style={{ color: "#f87171", fontSize: "13px" }}>{authError}</p>}
+            {authError && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "10px" }}>{authError}</p>}
 
             {authMode === "google" && (
               <button onClick={handleGoogleLogin} style={styles.googleBtn}>
@@ -312,11 +386,27 @@ function App() {
                   required
                   style={styles.input}
                 />
+                
+                {/* 🔑 RETYPE PASSWORD FIELD (Shown only during Sign Up) */}
+                {isSignUp && (
+                  <input 
+                    type="password" 
+                    placeholder="retype password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    style={styles.input}
+                  />
+                )}
+
                 <button type="submit" style={styles.submitBtn}>
                   {isSignUp ? "Sign Up" : "Log In"}
                 </button>
                 <p 
-                  onClick={() => setIsSignUp(!isSignUp)} 
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setAuthError("");
+                  }} 
                   style={{ cursor: "pointer", color: "#38bdf8", marginTop: "10px", fontSize: "13px" }}
                 >
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
@@ -327,6 +417,8 @@ function App() {
         </div>
       ) : (
         <div style={styles.mainFeed}>
+          
+          {/* USER STATUS BAR */}
           <div style={styles.userBar}>
             <div>
               <span style={{ fontWeight: "bold", color: "#f8fafc" }}>👤 {user.displayName || user.email}</span>
@@ -337,205 +429,334 @@ function App() {
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
 
-          {/* 🔍 SEARCH & FILTER */}
-          <div style={styles.searchSection}>
-            <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
+          {/* 🟢 LIVE ACTIVE USERS PRESENCE PANEL */}
+          <div style={styles.activeUsersPanel}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={styles.pulseGreenDot}></span>
+              <h4 style={{ margin: 0, color: "#4ade80", fontSize: "14px" }}>
+                লাইভ একটিভ ইউজার: <b>{onlineUsers.length}</b> জন অনলোইন আছেন
+              </h4>
+            </div>
             
-            <div style={styles.filterGrid}>
-              <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
+            <div style={styles.activeUserChipsContainer}>
+              {onlineUsers.map(u => (
+                <span key={u.id} style={styles.userChip}>
+                  🟢 {u.displayName}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* ----------------- VIEW 1: USER DASHBOARD ----------------- */}
+          {currentView === "dashboard" && (
+            <div style={styles.dashboardSection}>
+              <h2 style={{ color: "#38bdf8", marginBottom: "15px", fontSize: "22px" }}>
+                📊 ইউজার ড্যাশবোর্ড (User Dashboard)
+              </h2>
+
+              {/* User Search Box */}
+              <div style={styles.searchSection}>
+                <label style={{ color: "#cbd5e1", fontSize: "14px", display: "block", marginBottom: "8px" }}>
+                  🔍 ইউজারের নাম লিখে তার আপলোড করা ফাইলগুলো খুঁজুন:
+                </label>
                 <input 
                   type="text" 
-                  placeholder="বইয়ের নাম বা কোড দিয়ে খুঁজুন..." 
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="ইউজারের নাম লিখুন (e.g. Anondo, SPK)..." 
+                  value={dashboardUserSearch}
+                  onChange={(e) => setDashboardUserSearch(e.target.value)}
                   style={styles.searchInput}
                 />
 
-                {showSuggestions && searchQuery.trim() !== "" && (
-                  <div style={styles.suggestionBox}>
-                    {suggestedBooks.length === 0 ? (
-                      <div style={styles.suggestionItem}>কোনো বই পাওয়া যায়নি</div>
-                    ) : (
-                      suggestedBooks.map((book, idx) => (
-                        <div 
-                          key={idx} 
-                          style={styles.suggestionItem}
-                          onClick={() => {
-                            setSelectedSubjectFilter(book);
-                            setSearchQuery(book);
-                            setShowSuggestions(false);
-                          }}
-                        >
-                          📖 {book}
+                {/* Quick Selection Buttons for User Names */}
+                <div style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <span style={{ color: "#94a3b8", fontSize: "12px", alignSelf: "center" }}>দ্রুত সিলেক্ট করুন:</span>
+                  <button 
+                    onClick={() => setDashboardUserSearch("")} 
+                    style={{ ...styles.userSelectBtn, backgroundColor: dashboardUserSearch === "" ? "#0284c7" : "#334155" }}
+                  >
+                    সকল ইউজার
+                  </button>
+                  {uploaderList.map((name, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => setDashboardUserSearch(name)}
+                      style={{ 
+                        ...styles.userSelectBtn, 
+                        backgroundColor: dashboardUserSearch.toLowerCase() === name.toLowerCase() ? "#0284c7" : "#334155" 
+                      }}
+                    >
+                      👤 {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* User Specific Notes Grid */}
+              <h3 style={{ color: "#f8fafc", margin: "20px 0 15px 0", fontSize: "18px" }}>
+                {dashboardUserSearch ? `👤 "${dashboardUserSearch}" এর আপলোড করা নোটসমূহ (${dashboardFilteredNotes.length})` : `📁 সকল ইউজারের ফাইলসমূহ (${dashboardFilteredNotes.length})`}
+              </h3>
+
+              <div style={styles.notesGrid}>
+                {dashboardFilteredNotes.length === 0 ? (
+                  <p style={{ color: "#94a3b8" }}>এই নাম দিয়ে কোনো ইউজারের ফাইল পাওয়া যায়নি।</p>
+                ) : (
+                  dashboardFilteredNotes.map((n) => (
+                    <div key={n.id} style={styles.noteCard}>
+                      <div>
+                        <div style={styles.cardHeader}>
+                          <span style={styles.subjectTag}>📖 {n.subject}</span>
+                          <span style={styles.dateTag}>🗓️ {n.date}</span>
                         </div>
-                      ))
+
+                        <h4 style={styles.fileName}>{n.fileName}</h4>
+
+                        {n.pdfInfo && (
+                          <p style={styles.pdfInfoTag}>ℹ️ {n.pdfInfo}</p>
+                        )}
+
+                        <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
+                      </div>
+
+                      <div style={styles.cardActions}>
+                        <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
+                          👁️ দেখুন
+                        </a>
+
+                        <button 
+                          onClick={() => handleDownload(n.fileUrl, n.fileName)} 
+                          style={styles.downloadBtn}
+                        >
+                          📥 ডাউনলোড
+                        </button>
+
+                        <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
+                          🔗
+                        </button>
+
+                        {isAdmin && (
+                          <>
+                            <button 
+                              onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
+                              style={styles.renameBtn}
+                            >
+                              ✏️
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(n.id)} 
+                              style={styles.deleteBtn}
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ----------------- VIEW 2: HOME FEED (Main Notes & Upload) ----------------- */}
+          {currentView === "home" && (
+            <>
+              {/* 🔍 SEARCH & FILTER */}
+              <div style={styles.searchSection}>
+                <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
+                
+                <div style={styles.filterGrid}>
+                  <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="বইয়ের নাম বা কোড দিয়ে খুঁজুন..." 
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      style={styles.searchInput}
+                    />
+
+                    {showSuggestions && searchQuery.trim() !== "" && (
+                      <div style={styles.suggestionBox}>
+                        {suggestedBooks.length === 0 ? (
+                          <div style={styles.suggestionItem}>কোনো বই পাওয়া যায়নি</div>
+                        ) : (
+                          suggestedBooks.map((book, idx) => (
+                            <div 
+                              key={idx} 
+                              style={styles.suggestionItem}
+                              onClick={() => {
+                                setSelectedSubjectFilter(book);
+                                setSearchQuery(book);
+                                setShowSuggestions(false);
+                              }}
+                            >
+                              📖 {book}
+                            </div>
+                          ))
+                        )}
+                      </div>
                     )}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <input 
+                      type="date" 
+                      value={selectedDateFilter}
+                      onChange={(e) => setSelectedDateFilter(e.target.value)}
+                      style={styles.dateFilterInput}
+                      title="তারিখ অনুযায়ী ফিল্টার করুন"
+                    />
+                  </div>
+                </div>
+
+                {(selectedSubjectFilter || selectedDateFilter) && (
+                  <div style={styles.activeFilterTag}>
+                    <span style={{ color: "#cbd5e1" }}>ফিল্টার: </span>
+                    {selectedSubjectFilter && <span style={styles.filterBadge}>📖 {selectedSubjectFilter}</span>}
+                    {selectedDateFilter && <span style={styles.filterBadge}>🗓️ {selectedDateFilter}</span>}
+                    <button 
+                      onClick={() => {
+                        setSelectedSubjectFilter("");
+                        setSelectedDateFilter("");
+                        setSearchQuery("");
+                      }} 
+                      style={styles.resetBtn}
+                    >
+                      ✖ ফিল্টার ক্লিয়ার করুন
+                    </button>
                   </div>
                 )}
               </div>
 
-              <div style={{ flex: 1, minWidth: "150px" }}>
-                <input 
-                  type="date" 
-                  value={selectedDateFilter}
-                  onChange={(e) => setSelectedDateFilter(e.target.value)}
-                  style={styles.dateFilterInput}
-                  title="তারিখ অনুযায়ী ফিল্টার করুন"
-                />
-              </div>
-            </div>
-
-            {(selectedSubjectFilter || selectedDateFilter) && (
-              <div style={styles.activeFilterTag}>
-                <span style={{ color: "#cbd5e1" }}>ফিল্টার: </span>
-                {selectedSubjectFilter && <span style={styles.filterBadge}>📖 {selectedSubjectFilter}</span>}
-                {selectedDateFilter && <span style={styles.filterBadge}>🗓️ {selectedDateFilter}</span>}
-                <button 
-                  onClick={() => {
-                    setSelectedSubjectFilter("");
-                    setSelectedDateFilter("");
-                    setSearchQuery("");
-                  }} 
-                  style={styles.resetBtn}
-                >
-                  ✖ ফিল্টার ক্লিয়ার করুন
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 📌 UPLOAD SECTION WITH PDF INFO FIELD */}
-          <div style={styles.uploadCard}>
-            <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
-            <form onSubmit={handleUpload} style={styles.uploadForm}>
-              <div style={styles.inputGroup}>
-                
-                <select 
-                  value={subject} 
-                  onChange={(e) => setSubject(e.target.value)}
-                  style={styles.input}
-                  required
-                >
-                  {BOOK_LIST.map((item, index) => (
-                    <option key={index} value={item} style={{ backgroundColor: "#1e293b", color: "#fff" }}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-
-                <input 
-                  type="date" 
-                  value={noteDate}
-                  onChange={(e) => setNoteDate(e.target.value)}
-                  required
-                  style={styles.input}
-                />
-              </div>
-
-              {/* 📝 NEW INPUT FIELD: SHORT DESCRIPTION / WRITE PDF INFO */}
-              <input 
-                type="text" 
-                placeholder="write pdf info" 
-                value={pdfInfo}
-                onChange={(e) => setPdfInfo(e.target.value)}
-                style={{ ...styles.input, marginTop: "12px" }}
-              />
-
-              <input 
-                type="file" 
-                accept=".pdf,.png,.jpg,.jpeg"
-                onChange={(e) => setFile(e.target.files[0])} 
-                required
-                style={{ margin: "15px 0", color: "#cbd5e1" }}
-              />
-              <small style={{ color: "#94a3b8", marginBottom: "15px", display: "block" }}>
-                * সর্বোচ্চ ফাইল সাইজ: <b>30 MB</b> (PDF/Image)
-              </small>
-              
-              <button 
-                type="submit" 
-                disabled={uploading}
-                style={styles.uploadBtn}
-              >
-                {uploading ? "আপলোড হচ্ছে..." : "📤 নোট আপলোড করুন"}
-              </button>
-            </form>
-          </div>
-
-          {/* 📖 NOTES GRID */}
-          <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px", textShadow: "0 0 10px rgba(56,189,248,0.3)" }}>
-            📖 ক্লাসের নোটস ({filteredNotes.length})
-          </h2>
-          
-          <div style={styles.notesGrid}>
-            {filteredNotes.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>কোনো নোট পাওয়া যায়নি।</p>
-            ) : (
-              filteredNotes.map((n) => (
-                <div key={n.id} style={styles.noteCard}>
-                  <div>
-                    {/* Header: Subject & Date Tags */}
-                    <div style={styles.cardHeader}>
-                      <span style={styles.subjectTag}>📖 {n.subject}</span>
-                      <span style={styles.dateTag}>🗓️ {n.date}</span>
-                    </div>
-
-                    <h4 style={styles.fileName}>{n.fileName}</h4>
-
-                    {/* Display PDF Short Info if available */}
-                    {n.pdfInfo && (
-                      <p style={styles.pdfInfoTag}>
-                        ℹ️ {n.pdfInfo}
-                      </p>
-                    )}
-
-                    <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
-                  </div>
-                  
-                  {/* Actions Bar with View & Download */}
-                  <div style={styles.cardActions}>
-                    <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
-                      👁️ দেখুন
-                    </a>
-
-                    <button 
-                      onClick={() => handleDownload(n.fileUrl, n.fileName)} 
-                      style={styles.downloadBtn}
+              {/* 📌 UPLOAD SECTION */}
+              <div style={styles.uploadCard}>
+                <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
+                <form onSubmit={handleUpload} style={styles.uploadForm}>
+                  <div style={styles.inputGroup}>
+                    <select 
+                      value={subject} 
+                      onChange={(e) => setSubject(e.target.value)}
+                      style={styles.input}
+                      required
                     >
-                      📥 ডাউনলোড
-                    </button>
+                      {BOOK_LIST.map((item, index) => (
+                        <option key={index} value={item} style={{ backgroundColor: "#1e293b", color: "#fff" }}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
 
-                    <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
-                      🔗
-                    </button>
-
-                    {isAdmin && (
-                      <>
-                        <button 
-                          onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
-                          style={styles.renameBtn}
-                          title="Rename / Edit"
-                        >
-                          ✏️
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(n.id)} 
-                          style={styles.deleteBtn}
-                          title="Delete File"
-                        >
-                          🗑️
-                        </button>
-                      </>
-                    )}
+                    <input 
+                      type="date" 
+                      value={noteDate}
+                      onChange={(e) => setNoteDate(e.target.value)}
+                      required
+                      style={styles.input}
+                    />
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+
+                  {/* PDF Short Info Input */}
+                  <input 
+                    type="text" 
+                    placeholder="write pdf info" 
+                    value={pdfInfo}
+                    onChange={(e) => setPdfInfo(e.target.value)}
+                    style={{ ...styles.input, marginTop: "12px" }}
+                  />
+
+                  <input 
+                    type="file" 
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => setFile(e.target.files[0])} 
+                    required
+                    style={{ margin: "15px 0", color: "#cbd5e1" }}
+                  />
+                  <small style={{ color: "#94a3b8", marginBottom: "15px", display: "block" }}>
+                    * সর্বোচ্চ ফাইল সাইজ: <b>30 MB</b> (PDF/Image)
+                  </small>
+                  
+                  <button 
+                    type="submit" 
+                    disabled={uploading}
+                    style={styles.uploadBtn}
+                  >
+                    {uploading ? "আপলোড হচ্ছে..." : "📤 নোট আপলোড করুন"}
+                  </button>
+                </form>
+              </div>
+
+              {/* 📖 NOTES GRID */}
+              <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px", textShadow: "0 0 10px rgba(56,189,248,0.3)" }}>
+                📖 ক্লাসের নোটস ({filteredNotes.length})
+              </h2>
+              
+              <div style={styles.notesGrid}>
+                {filteredNotes.length === 0 ? (
+                  <p style={{ color: "#94a3b8" }}>কোনো নোট পাওয়া যায়নি।</p>
+                ) : (
+                  filteredNotes.map((n) => (
+                    <div key={n.id} style={styles.noteCard}>
+                      <div>
+                        <div style={styles.cardHeader}>
+                          <span style={styles.subjectTag}>📖 {n.subject}</span>
+                          <span style={styles.dateTag}>🗓️ {n.date}</span>
+                        </div>
+
+                        <h4 style={styles.fileName}>{n.fileName}</h4>
+
+                        {n.pdfInfo && (
+                          <p style={styles.pdfInfoTag}>
+                            ℹ️ {n.pdfInfo}
+                          </p>
+                        )}
+
+                        <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
+                      </div>
+                      
+                      <div style={styles.cardActions}>
+                        <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
+                          👁️ দেখুন
+                        </a>
+
+                        <button 
+                          onClick={() => handleDownload(n.fileUrl, n.fileName)} 
+                          style={styles.downloadBtn}
+                        >
+                          📥 ডাউনলোড
+                        </button>
+
+                        <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
+                          🔗
+                        </button>
+
+                        {isAdmin && (
+                          <>
+                            <button 
+                              onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
+                              style={styles.renameBtn}
+                              title="Rename / Edit"
+                            >
+                              ✏️
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(n.id)} 
+                              style={styles.deleteBtn}
+                              title="Delete File"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -588,7 +809,7 @@ const styles = {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
-    justify: "space-between",
+    justifyContent: "space-between",
     color: "#f8fafc"
   },
   header: {
@@ -599,13 +820,19 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     borderBottom: "1px solid rgba(56, 189, 248, 0.2)",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)"
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+    flexWrap: "wrap",
+    gap: "10px"
   },
   logo: { fontSize: "20px", color: "#38bdf8", margin: 0, fontWeight: "bold", textShadow: "0 0 10px rgba(56,189,248,0.5)" },
   subLogo: { fontSize: "11px", color: "#94a3b8", margin: 0 },
   branding: { fontSize: "12px", fontWeight: "600", color: "#cbd5e1" },
   brandLink: { color: "#4ade80", textDecoration: "none", fontWeight: "bold" },
   
+  navTabs: { display: "flex", gap: "8px" },
+  navBtn: { padding: "8px 16px", border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" },
+  activeNavBtn: { backgroundColor: "#0284c7", color: "#fff", borderColor: "#38bdf8", boxShadow: "0 0 10px rgba(2,132,199,0.5)" },
+
   heroSection: { maxWidth: "450px", margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
   authCard: { 
@@ -642,13 +869,37 @@ const styles = {
     backdropFilter: "blur(12px)",
     padding: "12px 15px", 
     borderRadius: "12px", 
-    marginBottom: "20px", 
+    marginBottom: "15px", 
     border: "1px solid rgba(255, 255, 255, 0.1)" 
   },
   badge: { backgroundColor: "#0284c7", color: "#fff", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px" },
   adminBadge: { backgroundColor: "#f59e0b", color: "#000", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px", fontWeight: "bold" },
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
-  
+
+  // Active Users Panel
+  activeUsersPanel: {
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backdropFilter: "blur(12px)",
+    padding: "12px 15px",
+    borderRadius: "12px",
+    marginBottom: "20px",
+    border: "1px solid rgba(34, 197, 94, 0.3)"
+  },
+  pulseGreenDot: {
+    width: "10px",
+    height: "10px",
+    backgroundColor: "#22c55e",
+    borderRadius: "50%",
+    display: "inline-block",
+    animation: "pulseDot 2s infinite"
+  },
+  activeUserChipsContainer: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" },
+  userChip: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#86efac", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", border: "1px solid rgba(34,197,94,0.3)" },
+
+  // Dashboard Specific Styles
+  dashboardSection: { marginBottom: "30px" },
+  userSelectBtn: { border: "none", color: "#fff", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+
   // Search Section
   searchSection: { 
     backgroundColor: "rgba(30, 41, 59, 0.6)", 
@@ -680,7 +931,7 @@ const styles = {
   inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
   uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", boxShadow: "0 0 10px rgba(2,132,199,0.4)" },
   
-  // Note Cards Grid (Glow Border)
+  // Note Cards Grid
   notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" },
   noteCard: { 
     backgroundColor: "rgba(30, 41, 59, 0.7)", 
