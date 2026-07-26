@@ -27,7 +27,7 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -49,6 +49,48 @@ const BOOK_LIST = [
 
 // Permanent Admin Email List
 const ADMIN_EMAILS = ["spkroy2006@gmail.com"];
+
+// WHATSAPP CLICK TO COPY COMPONENT
+function WhatsAppCopyButton({ number }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!number) return;
+    navigator.clipboard.writeText(number);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!number) return <span>N/A</span>;
+
+  return (
+    <div style={{ display: "inline-block", position: "relative" }}>
+      {copied && (
+        <span style={styles.copyToast}>Copied!</span>
+      )}
+      <button 
+        type="button" 
+        onClick={handleCopy} 
+        style={styles.waCopyBtn}
+        title="Click to copy WhatsApp number"
+      >
+        <span>{number}</span>
+        {copied ? <Check size={12} color="#22c55e" /> : <Copy size={12} color="#22c55e" />}
+      </button>
+    </div>
+  );
+}
+
+// ROLE BADGE COMPONENT WITH ANIMATED GLOW
+function RoleBadge({ role }) {
+  if (role === "Admin") {
+    return <span style={styles.adminBadge} className="rgb-pulse"><Crown size={11} /> Admin</span>;
+  }
+  if (role === "Moderator") {
+    return <span style={styles.modBadge}><Shield size={11} /> Moderator</span>;
+  }
+  return <span style={styles.studentBadge}>Student</span>;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -595,7 +637,7 @@ function App() {
       {/* HEADER */}
       <header style={styles.header}>
         <div>
-          <h1 style={styles.logo}>KGC Math '26 Hub</h1>
+          <h1 style={styles.logo} className="rgb-text-glow">KGC Math '26 Hub</h1>
           <p style={styles.subLogo}>Kurigram Govt. College • Mathematics Dept.</p>
         </div>
 
@@ -1111,7 +1153,9 @@ function App() {
 
             <div style={styles.profileDetailsList}>
               <p><b>Dept. Roll:</b> {viewingProfile.deptRoll || "N/A"}</p>
-              <p><b>WhatsApp:</b> {viewingProfile.whatsapp ? <a href={`https://wa.me/${viewingProfile.whatsapp}`} target="_blank" rel="noreferrer" style={{ color: "#22c55e", display: "inline-flex", alignItems: "center", gap: "4px" }}>{viewingProfile.whatsapp} <ExternalLink size={12} /></a> : "N/A"}</p>
+              <p>
+                <b>WhatsApp:</b> <WhatsAppCopyButton number={viewingProfile.whatsapp} />
+              </p>
               <p><b>Email:</b> {viewingProfile.email || "N/A"}</p>
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
@@ -1128,17 +1172,6 @@ function App() {
       </footer>
     </div>
   );
-}
-
-// ROLE BADGE WITH SVG ICON
-function RoleBadge({ role }) {
-  if (role === "Admin") {
-    return <span style={styles.adminBadge}><Crown size={11} /> Admin</span>;
-  }
-  if (role === "Moderator") {
-    return <span style={styles.modBadge}><Shield size={11} /> Moderator</span>;
-  }
-  return <span style={styles.studentBadge}>Student</span>;
 }
 
 // SINGLE NOTE CARD COMPONENT
@@ -1299,8 +1332,8 @@ const styles = {
   animatedNoticeText: { color: "#cbd5e1", fontSize: "13px" },
 
   studentBadge: { backgroundColor: "#1e293b", color: "#94a3b8", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "500" },
-  adminBadge: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(56, 189, 248, 0.3)", display: "inline-flex", alignItems: "center", gap: "3px" },
-  modBadge: { backgroundColor: "rgba(139, 92, 246, 0.15)", color: "#c084fc", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(139, 92, 246, 0.3)", display: "inline-flex", alignItems: "center", gap: "3px" },
+  adminBadge: { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(239, 68, 68, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
+  modBadge: { backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(59, 130, 246, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
 
   logoutBtn: { backgroundColor: "transparent", color: "#f87171", border: "1px solid rgba(248, 113, 113, 0.2)", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "5px" },
 
@@ -1378,6 +1411,9 @@ const styles = {
   modalBadgeAdmin: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", border: "1px solid rgba(56, 189, 248, 0.3)" },
   modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
   profileDetailsList: { backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column", gap: "8px", color: "#cbd5e1" },
+
+  waCopyBtn: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" },
+  copyToast: { position: "absolute", top: "-28px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", whiteSpace: "nowrap" },
 
   footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#0f172a", borderTop: "1px solid #1e293b", fontSize: "12px", color: "#64748b" }
 };
