@@ -17,10 +17,11 @@ import {
   deleteDoc, 
   updateDoc, 
   setDoc, 
-  serverTimestamp 
+  increment,
+  arrayUnion,
+  arrayRemove
 } from "firebase/firestore";
 
-// বুকলিস্ট অনুযায়ী বিষয়সমূহের তালিকা (অনার্স ১ম বর্ষ, শিক্ষাবর্ষ: ২০২৪-২০২৫)
 const BOOK_LIST = [
   "বাংলাদেশের ইতিহাস: ভাষা, সংস্কৃতি ও পরিচয় [219901]",
   "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) [219903]",
@@ -38,28 +39,50 @@ const BOOK_LIST = [
   "বাংলাদেশের কৃষি অর্থনীতি [212211]"
 ];
 
+// Admin & Moderator Email Lists
+const ADMIN_EMAILS = ["spkroy2006@gmail.com"];
+const MODERATOR_EMAILS = ["mod1@gmail.com", "mod2@gmail.com"]; // প্রয়োজনমত ইমেইল যোগ করুন
+
 function App() {
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState("home"); // 'home' or 'dashboard'
+  const [currentView, setCurrentView] = useState("home"); // 'home', 'dashboard', 'profile'
   
-  // Upload States
+  // App Data States
+  const [allNotes, setAllNotes] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  
+  // Public Profile View Modal State
+  const [viewingProfile, setViewingProfile] = useState(null);
+
+  // Upload Note States
   const [file, setFile] = useState(null);
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [pdfInfo, setPdfInfo] = useState(""); 
-  const [allNotes, setAllNotes] = useState([]);
-  const [uploading, setUploading] = useState(false);
   
   // Auth States
   const [authMode, setAuthMode] = useState("google");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState(""); // 🔑 Retype Password State
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // Online Active Users Tracking
-  const [onlineUsers, setOnlineUsers] = useState([]);
+  // Profile Edit States
+  const [myProfile, setMyProfile] = useState({
+    displayName: "",
+    whatsapp: "",
+    email: "",
+    facebook: "",
+    dob: "",
+    address: "",
+    deptRoll: "",
+    photoUrl: "",
+    points: 0
+  });
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,52 +90,92 @@ function App() {
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Dashboard Search State (Search Notes by User Name)
-  const [dashboardUserSearch, setDashboardUserSearch] = useState("");
+  // Dashboard Selected User State
+  const [selectedDashboardUid, setSelectedDashboardUid] = useState(null);
+  const [commentText, setCommentText] = useState({});
 
-  // ImgBB API Key
   const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
-  // 👑 Admin Email
-  const ADMIN_EMAIL = "spkroy2006@gmail.com";
-  const isAdmin = user && user.email === ADMIN_EMAIL;
+  const getUserRole = (userEmail) => {
+    if (!userEmail) return "Student";
+    if (ADMIN_EMAILS.includes(userEmail.toLowerCase())) return "Admin";
+    if (MODERATOR_EMAILS.includes(userEmail.toLowerCase())) return "Moderator";
+    return "Student";
+  };
 
-  // Contact Info
-  const WHATSAPP_NUMBER = "8801522107909";
-  const FACEBOOK_URL = "https://www.facebook.com/spk.roy.02/";
+  const currentUserRole = user ? getUserRole(user.email) : "Student";
+  const isAdmin = currentUserRole === "Admin";
+  const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
+
+  const updateUserScore = async (uid, points) => {
+    if (!uid) return;
+    try {
+      const userRef = doc(db, "users", uid);
+      await updateDoc(userRef, { points: increment(points) });
+    } catch (e) {
+      console.error("Score update error:", e);
+    }
+  };
 
   useEffect(() => {
-    // Auth Observer & Active User Tracker
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        const userRef = doc(db, "activeUsers", currentUser.uid);
+        const userRef = doc(db, "users", currentUser.uid);
+        
         await setDoc(userRef, {
+          uid: currentUser.uid,
           displayName: currentUser.displayName || currentUser.email.split("@")[0],
           email: currentUser.email,
-          lastActive: serverTimestamp()
         }, { merge: true });
       }
     });
 
-    // Listen to Notes collection
+    // Notes Listener
     const notesQuery = query(collection(db, "notes"), orderBy("createdAt", "desc"));
     const unsubscribeNotes = onSnapshot(notesQuery, (snapshot) => {
       setAllNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Listen to Active Online Users Collection
-    const activeUsersQuery = query(collection(db, "activeUsers"));
-    const unsubscribeActiveUsers = onSnapshot(activeUsersQuery, (snapshot) => {
-      setOnlineUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    // Users Listener
+    const usersQuery = query(collection(db, "users"));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const uList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllUsers(uList);
+
+      if (auth.currentUser) {
+        const foundMe = uList.find(u => u.uid === auth.currentUser.uid);
+        if (foundMe) {
+          setMyProfile({
+            displayName: foundMe.displayName || auth.currentUser.displayName || "",
+            whatsapp: foundMe.whatsapp || "",
+            email: foundMe.email || auth.currentUser.email || "",
+            facebook: foundMe.facebook || "",
+            dob: foundMe.dob || "",
+            address: foundMe.address || "",
+            deptRoll: foundMe.deptRoll || "",
+            photoUrl: foundMe.photoUrl || "",
+            points: foundMe.points || 0
+          });
+        }
+      }
     });
 
     return () => {
       unsubscribeAuth();
       unsubscribeNotes();
-      unsubscribeActiveUsers();
+      unsubscribeUsers();
     };
   }, []);
+
+  // Leaderboard Calculated Array
+  const leaderboardUsers = [...allUsers].sort((a, b) => (b.points || 0) - (a.points || 0));
+
+  // Get Leaderboard Rank helper
+  const getUserRank = (targetUid) => {
+    const rankIndex = leaderboardUsers.findIndex(u => u.uid === targetUid);
+    return rankIndex !== -1 ? `#${rankIndex + 1}` : "N/A";
+  };
 
   const handleGoogleLogin = () => {
     signInWithPopup(auth, provider).catch(err => setAuthError(err.message));
@@ -124,7 +187,7 @@ function App() {
 
     if (isSignUp) {
       if (password !== confirmPassword) {
-        setAuthError("পাসওয়ার্ড দুটি মিলছে না! Retype password সঠিকভাবে দিন।");
+        setAuthError("পাসওয়ার্ড দুটি মিলছে না!");
         return;
       }
       createUserWithEmailAndPassword(auth, email, password)
@@ -137,16 +200,61 @@ function App() {
 
   const handleLogout = () => signOut(auth);
 
+  // Profile Save / Update Handler
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+
+    try {
+      let finalPhotoUrl = myProfile.photoUrl;
+
+      if (profilePicFile) {
+        if (profilePicFile.size > 5 * 1024 * 1024) {
+          alert("প্রোফাইল পিকচারের সাইজ সর্বোচ্চ 5 MB হতে পারবে!");
+          setSavingProfile(false);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", profilePicFile);
+
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const resData = await res.json();
+        if (resData.success) {
+          finalPhotoUrl = resData.data.url;
+        }
+      }
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        displayName: myProfile.displayName,
+        whatsapp: myProfile.whatsapp,
+        email: myProfile.email,
+        facebook: myProfile.facebook,
+        dob: myProfile.dob,
+        address: myProfile.address,
+        deptRoll: myProfile.deptRoll,
+        photoUrl: finalPhotoUrl
+      });
+
+      setSavingProfile(false);
+      alert("আপনার প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
+    } catch (error) {
+      console.error(error);
+      setSavingProfile(false);
+      alert("প্রোফাইল আপডেট করতে সমস্যা হয়েছে!");
+    }
+  };
+
+  // Upload Note (+100 Points)
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !subject || !noteDate) {
       alert("অনুগ্রহ করে ফাইল, বিষয় এবং তারিখ প্রদান করুন!");
-      return;
-    }
-
-    const MAX_SIZE_MB = 30;
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      alert(`ফাইলের সাইজ সর্বোচ্চ ${MAX_SIZE_MB} MB হতে পারবে!`);
       return;
     }
 
@@ -165,6 +273,7 @@ function App() {
 
       if (result.success || result.data?.url) {
         const downloadURL = result.data.url;
+        const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
 
         await addDoc(collection(db, "notes"), {
           fileName: file.name,
@@ -172,75 +281,87 @@ function App() {
           date: noteDate,
           pdfInfo: pdfInfo.trim(),
           fileUrl: downloadURL,
-          uploadedBy: user.displayName || user.email.split('@')[0],
+          uploadedBy: uName,
           uploaderUid: user.uid,
+          uploaderEmail: user.email,
+          likes: [],
+          comments: [],
           createdAt: new Date()
         });
+
+        await updateUserScore(user.uid, 100);
 
         setUploading(false);
         setFile(null);
         setSubject(BOOK_LIST[0]);
         setNoteDate("");
         setPdfInfo("");
-        alert("নোট/PDF সফলভাবে আপলোড হয়েছে!");
+        alert("নোট/PDF সফলভাবে আপলোড হয়েছে! আপনি ১০০ পয়েন্ট পেলেন! 🎉");
       } else {
-        throw new Error(result.error?.message || "আপলোডে সমস্যা হয়েছে।");
+        throw new Error("আপলোডে সমস্যা হয়েছে।");
       }
     } catch (error) {
-      console.error("Upload Error:", error);
       setUploading(false);
-      alert(`আপলোড ব্যর্থ হয়েছে! এরর: ${error.message}`);
+      alert(`আপলোড ব্যর্থ হয়েছে!`);
     }
   };
 
-  // 👑 Admin Control: Delete
+  // Like Toggle Handler
+  const handleLikeToggle = async (note) => {
+    if (!user) return;
+    const noteRef = doc(db, "notes", note.id);
+    const hasLiked = note.likes?.includes(user.uid);
+
+    if (hasLiked) {
+      await updateDoc(noteRef, { likes: arrayRemove(user.uid) });
+    } else {
+      await updateDoc(noteRef, { likes: arrayUnion(user.uid) });
+      await updateUserScore(user.uid, 3);
+      if (note.uploaderUid !== user.uid) {
+        await updateUserScore(note.uploaderUid, 5);
+      }
+    }
+  };
+
+  // Comment Handler
+  const handleAddComment = async (e, note) => {
+    e.preventDefault();
+    const text = commentText[note.id];
+    if (!text || !text.trim()) return;
+
+    const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+    const newComment = {
+      id: Date.now().toString(),
+      userName: uName,
+      userUid: user.uid,
+      userEmail: user.email,
+      text: text.trim(),
+      date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const noteRef = doc(db, "notes", note.id);
+    await updateDoc(noteRef, { comments: arrayUnion(newComment) });
+
+    await updateUserScore(user.uid, 5);
+    if (note.uploaderUid !== user.uid) {
+      await updateUserScore(note.uploaderUid, 7);
+    }
+
+    setCommentText(prev => ({ ...prev, [note.id]: "" }));
+  };
+
   const handleDelete = async (noteId) => {
-    if (!isAdmin) {
-      alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
-      return;
-    }
-    const confirmDelete = window.confirm("অ্যাডমিন প্যানেল: আপনি কি এই ফাইলটি মুছে ফেলতে চান?");
-    if (confirmDelete) {
-      try {
-        await deleteDoc(doc(db, "notes", noteId));
-        alert("ফাইলটি মুছে ফেলা হয়েছে!");
-      } catch (error) {
-        alert("ডিলিট করতে ব্যর্থ হয়েছে!");
-      }
-    }
-  };
-
-  // 👑 Admin Control: Rename
-  const handleRename = async (noteId, currentFileName, currentSubject, currentInfo) => {
-    if (!isAdmin) {
-      alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
-      return;
-    }
-    const newFileName = prompt("নতুন ফাইলের নাম লিখুন:", currentFileName);
-    const newSubject = prompt("নতুন বিষয়ের নাম লিখুন (বুকলিস্ট অনুযায়ী):", currentSubject);
-    const newInfo = prompt("নতুন PDF ইনফো লিখুন:", currentInfo || "");
-
-    if (newFileName && newSubject) {
-      try {
-        const noteRef = doc(db, "notes", noteId);
-        await updateDoc(noteRef, {
-          fileName: newFileName,
-          subject: newSubject,
-          pdfInfo: newInfo
-        });
-        alert("ফাইলের তথ্য আপডেট করা হয়েছে!");
-      } catch (error) {
-        alert("আপডেট করতে ব্যর্থ হয়েছে!");
-      }
+    if (!isModOrAdmin) return;
+    if (window.confirm("আপনি কি ফাইলটি ডিলিট করতে চান?")) {
+      await deleteDoc(doc(db, "notes", noteId));
     }
   };
 
   const copyLink = (url) => {
     navigator.clipboard.writeText(url);
-    alert("নোটের লিংক কপি করা হয়েছে!");
+    alert("লিংক কপি হয়েছে!");
   };
 
-  // 📥 Force Download Helper Function
   const handleDownload = async (fileUrl, fileName) => {
     try {
       const response = await fetch(fileUrl);
@@ -252,7 +373,6 @@ function App() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       window.open(fileUrl, "_blank");
     }
@@ -263,152 +383,71 @@ function App() {
   );
 
   const filteredNotes = allNotes.filter(note => {
-    const matchesSubject = selectedSubjectFilter 
-      ? note.subject.toLowerCase() === selectedSubjectFilter.toLowerCase()
-      : true;
-
-    const matchesDate = selectedDateFilter 
-      ? note.date === selectedDateFilter
-      : true;
-
+    const matchesSubject = selectedSubjectFilter ? note.subject.toLowerCase() === selectedSubjectFilter.toLowerCase() : true;
+    const matchesDate = selectedDateFilter ? note.date === selectedDateFilter : true;
     return matchesSubject && matchesDate;
   });
 
-  // Filter notes for Dashboard View (by searched user name)
-  const dashboardFilteredNotes = allNotes.filter(note => {
-    if (!dashboardUserSearch.trim()) return true;
-    return note.uploadedBy.toLowerCase().includes(dashboardUserSearch.toLowerCase());
-  });
-
-  // Unique Uploader List for Dashboard Shortcuts
-  const uploaderList = Array.from(new Set(allNotes.map(n => n.uploadedBy)));
+  const dashboardFilteredNotes = selectedDashboardUid 
+    ? allNotes.filter(n => n.uploaderUid === selectedDashboardUid)
+    : allNotes;
 
   return (
     <div style={styles.container}>
-      <style>{`
-        @keyframes rgbAnimation {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes pulseDot {
-          0% { transform: scale(0.95); boxShadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-          70% { transform: scale(1); boxShadow: 0 0 0 8px rgba(34, 197, 94, 0); }
-          100% { transform: scale(0.95); boxShadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-      `}</style>
-
-      {/* HEADER WITH VIEW NAVIGATION */}
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>KGC Math '26 Hub</h1>
           <p style={styles.subLogo}>Kurigram Govt. College • Mathematics Dept.</p>
         </div>
 
-        {/* View Switcher Tabs */}
         {user && (
           <div style={styles.navTabs}>
-            <button 
-              onClick={() => setCurrentView("home")} 
-              style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}
-            >
+            <button onClick={() => setCurrentView("home")} style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}>
               🏠 Home
             </button>
-            <button 
-              onClick={() => setCurrentView("dashboard")} 
-              style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}
-            >
+            <button onClick={() => setCurrentView("dashboard")} style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}>
               📊 Dashboard
+            </button>
+            <button onClick={() => setCurrentView("profile")} style={{ ...styles.navBtn, ...(currentView === "profile" ? styles.activeNavBtn : {}) }}>
+              👤 My Profile
             </button>
           </div>
         )}
 
         <div style={styles.branding}>
-          Designed by{" "}
-          <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>
-            Anondo
-          </a>
+          Designed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>Anondo</a>
         </div>
       </header>
 
       {!user ? (
         <div style={styles.heroSection}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#ffffff", marginBottom: "10px", textShadow: "0 0 10px rgba(0,255,200,0.5)" }}>
-              স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫ (২০২৬ ব্যাচ)! 📚
-            </h2>
-            <p style={{ color: "#cbd5e1", lineHeight: "1.6" }}>
-              এখানে ক্লাসের বিষয়ভিত্তিক নোট এবং ফাইল আপলোড ও শেয়ার করা যাবে। সাইটে প্রবেশ করতে লগইন করুন।
-            </p>
+            <h2 style={{ color: "#ffffff", marginBottom: "10px" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫! 📚</h2>
+            <p style={{ color: "#cbd5e1" }}>নোট দেখতে ও স্কোর জমা করতে প্রবেশ করুন।</p>
           </div>
 
           <div style={styles.authCard}>
             <h3 style={{ marginBottom: "15px", color: "#f8fafc" }}>অ্যাকাউন্টে প্রবেশ করুন</h3>
-            
             <div style={styles.tabContainer}>
-              <button 
-                onClick={() => setAuthMode("google")} 
-                style={{...styles.tab, ...(authMode === "google" ? styles.activeTab : {})}}
-              >
-                Google
-              </button>
-              <button 
-                onClick={() => setAuthMode("email")} 
-                style={{...styles.tab, ...(authMode === "email" ? styles.activeTab : {})}}
-              >
-                Email
-              </button>
+              <button onClick={() => setAuthMode("google")} style={{...styles.tab, ...(authMode === "google" ? styles.activeTab : {})}}>Google</button>
+              <button onClick={() => setAuthMode("email")} style={{...styles.tab, ...(authMode === "email" ? styles.activeTab : {})}}>Email</button>
             </div>
 
-            {authError && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "10px" }}>{authError}</p>}
+            {authError && <p style={{ color: "#f87171", fontSize: "13px" }}>{authError}</p>}
 
             {authMode === "google" && (
-              <button onClick={handleGoogleLogin} style={styles.googleBtn}>
-                🌐 Continue with Google
-              </button>
+              <button onClick={handleGoogleLogin} style={styles.googleBtn}>🌐 Continue with Google</button>
             )}
 
             {authMode === "email" && (
               <form onSubmit={handleEmailAuth} style={styles.form}>
-                <input 
-                  type="email" 
-                  placeholder="Email Address" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  style={styles.input}
-                />
-                <input 
-                  type="password" 
-                  placeholder="Password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  style={styles.input}
-                />
-                
-                {/* 🔑 RETYPE PASSWORD FIELD (Shown only during Sign Up) */}
+                <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required style={styles.input} />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required style={styles.input} />
                 {isSignUp && (
-                  <input 
-                    type="password" 
-                    placeholder="retype password" 
-                    value={confirmPassword} 
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    style={styles.input}
-                  />
+                  <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required style={styles.input} />
                 )}
-
-                <button type="submit" style={styles.submitBtn}>
-                  {isSignUp ? "Sign Up" : "Log In"}
-                </button>
-                <p 
-                  onClick={() => {
-                    setIsSignUp(!isSignUp);
-                    setAuthError("");
-                  }} 
-                  style={{ cursor: "pointer", color: "#38bdf8", marginTop: "10px", fontSize: "13px" }}
-                >
+                <button type="submit" style={styles.submitBtn}>{isSignUp ? "Sign Up" : "Log In"}</button>
+                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "10px", fontSize: "13px" }}>
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
                 </p>
               </form>
@@ -418,185 +457,240 @@ function App() {
       ) : (
         <div style={styles.mainFeed}>
           
-          {/* USER STATUS BAR */}
           <div style={styles.userBar}>
-            <div>
-              <span style={{ fontWeight: "bold", color: "#f8fafc" }}>👤 {user.displayName || user.email}</span>
-              <span style={isAdmin ? styles.adminBadge : styles.badge}>
-                {isAdmin ? "👑 Admin" : "Student"}
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <img 
+                src={myProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
+                alt="Profile" 
+                style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8" }}
+              />
+              <div>
+                <span style={{ fontWeight: "bold", color: "#f8fafc", display: "flex", alignItems: "center", gap: "6px" }}>
+                  {myProfile.displayName || user.displayName || user.email}
+                  <RoleBadge role={currentUserRole} />
+                </span>
+                <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
+                  ⭐ {myProfile.points} Points | 🏆 Rank {getUserRank(user.uid)}
+                </span>
+              </div>
             </div>
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
 
-          {/* 🟢 LIVE ACTIVE USERS PRESENCE PANEL */}
-          <div style={styles.activeUsersPanel}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={styles.pulseGreenDot}></span>
-              <h4 style={{ margin: 0, color: "#4ade80", fontSize: "14px" }}>
-                লাইভ একটিভ ইউজার: <b>{onlineUsers.length}</b> জন অনলাইন আছেন
-              </h4>
-            </div>
-            
-            <div style={styles.activeUserChipsContainer}>
-              {onlineUsers.map(u => (
-                <span key={u.id} style={styles.userChip}>
-                  🟢 {u.displayName}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* ----------------- VIEW 1: USER DASHBOARD ----------------- */}
-          {currentView === "dashboard" && (
-            <div style={styles.dashboardSection}>
-              <h2 style={{ color: "#38bdf8", marginBottom: "15px", fontSize: "22px" }}>
-                📊 ইউজার ড্যাশবোর্ড (User Dashboard)
-              </h2>
-
-              {/* User Search Box */}
-              <div style={styles.searchSection}>
-                <label style={{ color: "#cbd5e1", fontSize: "14px", display: "block", marginBottom: "8px" }}>
-                  🔍 ইউজারের নাম লিখে তার আপলোড করা ফাইলগুলো খুঁজুন:
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="ইউজারের নাম লিখুন (e.g. Anondo,shuvo,zahid)..." 
-                  value={dashboardUserSearch}
-                  onChange={(e) => setDashboardUserSearch(e.target.value)}
-                  style={styles.searchInput}
-                />
-
-                {/* Quick Selection Buttons for User Names */}
-                <div style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <span style={{ color: "#94a3b8", fontSize: "12px", alignSelf: "center" }}>দ্রুত সিলেক্ট করুন:</span>
-                  <button 
-                    onClick={() => setDashboardUserSearch("")} 
-                    style={{ ...styles.userSelectBtn, backgroundColor: dashboardUserSearch === "" ? "#0284c7" : "#334155" }}
-                  >
-                    সকল ইউজার
-                  </button>
-                  {uploaderList.map((name, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => setDashboardUserSearch(name)}
-                      style={{ 
-                        ...styles.userSelectBtn, 
-                        backgroundColor: dashboardUserSearch.toLowerCase() === name.toLowerCase() ? "#0284c7" : "#334155" 
-                      }}
-                    >
-                      👤 {name}
-                    </button>
-                  ))}
+          {/* ----------------- EDIT MY PROFILE VIEW ----------------- */}
+          {currentView === "profile" && (
+            <div style={styles.profileSection}>
+              <h2 style={{ color: "#38bdf8", marginBottom: "15px" }}>✏️ আমার প্রোফাইল তথ্য</h2>
+              
+              {/* 📊 MY SCORE & RANK CARD BELOW PROFILE */}
+              <div style={styles.scoreSummaryBox}>
+                <div style={styles.scoreBoxItem}>
+                  <span style={styles.scoreBoxLabel}>⭐ Total Points</span>
+                  <span style={styles.scoreBoxValue}>{myProfile.points}</span>
+                </div>
+                <div style={styles.scoreBoxDivider}></div>
+                <div style={styles.scoreBoxItem}>
+                  <span style={styles.scoreBoxLabel}>🏆 Leaderboard Rank</span>
+                  <span style={styles.scoreBoxValue}>{getUserRank(user.uid)}</span>
                 </div>
               </div>
 
-              {/* User Specific Notes Grid */}
-              <h3 style={{ color: "#f8fafc", margin: "20px 0 15px 0", fontSize: "18px" }}>
-                {dashboardUserSearch ? `👤 "${dashboardUserSearch}" এর আপলোড করা নোটসমূহ (${dashboardFilteredNotes.length})` : `📁 সকল ইউজারের ফাইলসমূহ (${dashboardFilteredNotes.length})`}
+              <form onSubmit={handleSaveProfile} style={styles.profileForm}>
+                <div style={{ textAlign: "center", marginBottom: "15px" }}>
+                  <img 
+                    src={myProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
+                    alt="Preview" 
+                    style={{ width: "95px", height: "95px", borderRadius: "50%", objectFit: "cover", border: "3px solid #38bdf8", marginBottom: "8px" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginBottom: "10px" }}>
+                    <RoleBadge role={currentUserRole} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "12px", color: "#cbd5e1" }}>প্রোফাইল পিকচার (Max 5MB):</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setProfilePicFile(e.target.files[0])}
+                      style={{ marginTop: "5px", color: "#94a3b8", display: "block", margin: "5px auto", fontSize: "12px" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={styles.inputGrid}>
+                  <div>
+                    <label style={styles.label}>নাম:</label>
+                    <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Department Roll No.:</label>
+                    <input type="text" placeholder="e.g. 240105" value={myProfile.deptRoll} onChange={(e) => setMyProfile({...myProfile, deptRoll: e.target.value})} required style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>WhatsApp Number:</label>
+                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Email Address:</label>
+                    <input type="email" value={myProfile.email} onChange={(e) => setMyProfile({...myProfile, email: e.target.value})} required style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Facebook ID / Link (Optional):</label>
+                    <input type="text" placeholder="https://facebook.com/yourid" value={myProfile.facebook} onChange={(e) => setMyProfile({...myProfile, facebook: e.target.value})} style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>Date of Birth:</label>
+                    <input type="date" value={myProfile.dob} onChange={(e) => setMyProfile({...myProfile, dob: e.target.value})} required style={styles.input} />
+                  </div>
+
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={styles.label}>Address / বাসস্থান:</label>
+                    <input type="text" placeholder="e.g. Kurigram Sadar, Kurigram" value={myProfile.address} onChange={(e) => setMyProfile({...myProfile, address: e.target.value})} required style={styles.input} />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={savingProfile} style={styles.saveProfileBtn}>
+                  {savingProfile ? "সেভ হচ্ছে..." : "💾 প্রোফাইল সেভ করুন"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ----------------- DASHBOARD & SCOREBOARD VIEW ----------------- */}
+          {currentView === "dashboard" && (
+            <div style={styles.dashboardSection}>
+              
+              {/* 🏆 LEADERBOARD */}
+              <div style={styles.scoreBoardCard}>
+                <h3 style={{ color: "#fbbf24", margin: "0 0 15px 0", fontSize: "18px" }}>
+                  🏆 টপ স্কোরবোর্ড (Leaderboard)
+                </h3>
+                <div style={styles.leaderboardList}>
+                  {leaderboardUsers.map((u, index) => {
+                    const uRole = getUserRole(u.email);
+                    return (
+                      <div key={u.id} style={styles.leaderItem}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontWeight: "bold", color: index === 0 ? "#fbbf24" : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : "#cbd5e1" }}>
+                            #{index + 1}
+                          </span>
+                          <img src={u.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt="u" style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover" }} />
+                          <span 
+                            onClick={() => setViewingProfile(u)} 
+                            style={{ color: "#38bdf8", cursor: "pointer", textDecoration: "underline", display: "flex", alignItems: "center", gap: "5px" }}
+                          >
+                            {u.displayName || "User"}
+                            <RoleBadge role={uRole} />
+                          </span>
+                        </div>
+                        <span style={styles.scoreBadge}>⭐ {u.points || 0} Pts</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* USER SELECTION LIST */}
+              <div style={styles.searchSection}>
+                <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>
+                  👥 সকল রেজিস্টার্ড স্টুডেন্টস
+                </h3>
+                <div style={styles.userListGrid}>
+                  <button 
+                    onClick={() => setSelectedDashboardUid(null)}
+                    style={{ ...styles.userCardBtn, backgroundColor: !selectedDashboardUid ? "#0284c7" : "#1e293b" }}
+                  >
+                    🌐 সকল ইউজার
+                  </button>
+                  {allUsers.map(u => {
+                    const uRole = getUserRole(u.email);
+                    return (
+                      <div key={u.id} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                        <button 
+                          onClick={() => setSelectedDashboardUid(u.uid)}
+                          style={{ 
+                            ...styles.userCardBtn, 
+                            backgroundColor: selectedDashboardUid === u.uid ? "#0284c7" : "#1e293b" 
+                          }}
+                        >
+                          👤 {u.displayName || u.email.split('@')[0]}
+                        </button>
+                        <button 
+                          onClick={() => setViewingProfile(u)}
+                          style={styles.infoIconBtn}
+                          title="View Profile Details"
+                        >
+                          ℹ️
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* USER NOTES LIST */}
+              <h3 style={{ color: "#f8fafc", margin: "20px 0 15px 0" }}>
+                📁 {selectedDashboardUid ? "নির্বাচিত ইউজারের ফাইলসমূহ" : "সকল ফাইলসমূহ"} ({dashboardFilteredNotes.length})
               </h3>
 
               <div style={styles.notesGrid}>
-                {dashboardFilteredNotes.length === 0 ? (
-                  <p style={{ color: "#94a3b8" }}>এই নাম দিয়ে কোনো ইউজারের ফাইল পাওয়া যায়নি।</p>
-                ) : (
-                  dashboardFilteredNotes.map((n) => (
-                    <div key={n.id} style={styles.noteCard}>
-                      <div>
-                        <div style={styles.cardHeader}>
-                          <span style={styles.subjectTag}>📖 {n.subject}</span>
-                          <span style={styles.dateTag}>🗓️ {n.date}</span>
-                        </div>
-
-                        <h4 style={styles.fileName}>{n.fileName}</h4>
-
-                        {n.pdfInfo && (
-                          <p style={styles.pdfInfoTag}>ℹ️ {n.pdfInfo}</p>
-                        )}
-
-                        <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
-                      </div>
-
-                      <div style={styles.cardActions}>
-                        <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
-                          👁️ দেখুন
-                        </a>
-
-                        <button 
-                          onClick={() => handleDownload(n.fileUrl, n.fileName)} 
-                          style={styles.downloadBtn}
-                        >
-                          📥 ডাউনলোড
-                        </button>
-
-                        <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
-                          🔗
-                        </button>
-
-                        {isAdmin && (
-                          <>
-                            <button 
-                              onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
-                              style={styles.renameBtn}
-                            >
-                              ✏️
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(n.id)} 
-                              style={styles.deleteBtn}
-                            >
-                              🗑️
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                {dashboardFilteredNotes.map((n) => (
+                  <NoteCardItem 
+                    key={n.id} 
+                    note={n} 
+                    user={user} 
+                    allUsers={allUsers}
+                    isModOrAdmin={isModOrAdmin}
+                    handleLikeToggle={handleLikeToggle}
+                    handleAddComment={handleAddComment}
+                    commentText={commentText}
+                    setCommentText={setCommentText}
+                    handleDownload={handleDownload}
+                    copyLink={copyLink}
+                    handleDelete={handleDelete}
+                    setViewingProfile={setViewingProfile}
+                    getUserRole={getUserRole}
+                  />
+                ))}
               </div>
             </div>
           )}
 
-          {/* ----------------- VIEW 2: HOME FEED (Main Notes & Upload) ----------------- */}
+          {/* ----------------- HOME VIEW ----------------- */}
           {currentView === "home" && (
             <>
-              {/* 🔍 SEARCH & FILTER */}
+              {/* SEARCH & FILTER */}
               <div style={styles.searchSection}>
                 <h3 style={{ color: "#38bdf8", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
-                
                 <div style={styles.filterGrid}>
                   <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
                     <input 
                       type="text" 
                       placeholder="বইয়ের নাম বা কোড দিয়ে খুঁজুন..." 
                       value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setShowSuggestions(true);
-                      }}
+                      onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
                       onFocus={() => setShowSuggestions(true)}
                       style={styles.searchInput}
                     />
-
                     {showSuggestions && searchQuery.trim() !== "" && (
                       <div style={styles.suggestionBox}>
-                        {suggestedBooks.length === 0 ? (
-                          <div style={styles.suggestionItem}>কোনো বই পাওয়া যায়নি</div>
-                        ) : (
-                          suggestedBooks.map((book, idx) => (
-                            <div 
-                              key={idx} 
-                              style={styles.suggestionItem}
-                              onClick={() => {
-                                setSelectedSubjectFilter(book);
-                                setSearchQuery(book);
-                                setShowSuggestions(false);
-                              }}
-                            >
-                              📖 {book}
-                            </div>
-                          ))
-                        )}
+                        {suggestedBooks.map((book, idx) => (
+                          <div 
+                            key={idx} 
+                            style={styles.suggestionItem}
+                            onClick={() => {
+                              setSelectedSubjectFilter(book);
+                              setSearchQuery(book);
+                              setShowSuggestions(false);
+                            }}
+                          >
+                            📖 {book}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -607,363 +701,290 @@ function App() {
                       value={selectedDateFilter}
                       onChange={(e) => setSelectedDateFilter(e.target.value)}
                       style={styles.dateFilterInput}
-                      title="তারিখ অনুযায়ী ফিল্টার করুন"
                     />
                   </div>
                 </div>
-
-                {(selectedSubjectFilter || selectedDateFilter) && (
-                  <div style={styles.activeFilterTag}>
-                    <span style={{ color: "#cbd5e1" }}>ফিল্টার: </span>
-                    {selectedSubjectFilter && <span style={styles.filterBadge}>📖 {selectedSubjectFilter}</span>}
-                    {selectedDateFilter && <span style={styles.filterBadge}>🗓️ {selectedDateFilter}</span>}
-                    <button 
-                      onClick={() => {
-                        setSelectedSubjectFilter("");
-                        setSelectedDateFilter("");
-                        setSearchQuery("");
-                      }} 
-                      style={styles.resetBtn}
-                    >
-                      ✖ ফিল্টার ক্লিয়ার করুন
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* 📌 UPLOAD SECTION */}
+              {/* UPLOAD FORM */}
               <div style={styles.uploadCard}>
-                <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
+                <h3 style={{ color: "#38bdf8", marginBottom: "15px" }}>📌 নতুন PDF / ছবি আপলোড করুন (+100 Points)</h3>
                 <form onSubmit={handleUpload} style={styles.uploadForm}>
                   <div style={styles.inputGroup}>
-                    <select 
-                      value={subject} 
-                      onChange={(e) => setSubject(e.target.value)}
-                      style={styles.input}
-                      required
-                    >
+                    <select value={subject} onChange={(e) => setSubject(e.target.value)} style={styles.input} required>
                       {BOOK_LIST.map((item, index) => (
-                        <option key={index} value={item} style={{ backgroundColor: "#1e293b", color: "#fff" }}>
-                          {item}
-                        </option>
+                        <option key={index} value={item} style={{ backgroundColor: "#1e293b", color: "#fff" }}>{item}</option>
                       ))}
                     </select>
 
-                    <input 
-                      type="date" 
-                      value={noteDate}
-                      onChange={(e) => setNoteDate(e.target.value)}
-                      required
-                      style={styles.input}
-                    />
+                    <input type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} required style={styles.input} />
                   </div>
 
-                  {/* PDF Short Info Input */}
-                  <input 
-                    type="text" 
-                    placeholder="write pdf info" 
-                    value={pdfInfo}
-                    onChange={(e) => setPdfInfo(e.target.value)}
-                    style={{ ...styles.input, marginTop: "12px" }}
-                  />
+                  <input type="text" placeholder="write pdf info" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} style={{ ...styles.input, marginTop: "12px" }} />
 
-                  <input 
-                    type="file" 
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    onChange={(e) => setFile(e.target.files[0])} 
-                    required
-                    style={{ margin: "15px 0", color: "#cbd5e1" }}
-                  />
-                  <small style={{ color: "#94a3b8", marginBottom: "15px", display: "block" }}>
-                    * সর্বোচ্চ ফাইল সাইজ: <b>30 MB</b> (PDF/Image)
-                  </small>
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required style={{ margin: "15px 0", color: "#cbd5e1" }} />
                   
-                  <button 
-                    type="submit" 
-                    disabled={uploading}
-                    style={styles.uploadBtn}
-                  >
+                  <button type="submit" disabled={uploading} style={styles.uploadBtn}>
                     {uploading ? "আপলোড হচ্ছে..." : "📤 নোট আপলোড করুন"}
                   </button>
                 </form>
               </div>
 
-              {/* 📖 NOTES GRID */}
-              <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px", textShadow: "0 0 10px rgba(56,189,248,0.3)" }}>
-                📖 ক্লাসের নোটস ({filteredNotes.length})
-              </h2>
+              {/* NOTES FEED */}
+              <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "20px" }}>📖 সকল নোটস ({filteredNotes.length})</h2>
               
               <div style={styles.notesGrid}>
-                {filteredNotes.length === 0 ? (
-                  <p style={{ color: "#94a3b8" }}>কোনো নোট পাওয়া যায়নি।</p>
-                ) : (
-                  filteredNotes.map((n) => (
-                    <div key={n.id} style={styles.noteCard}>
-                      <div>
-                        <div style={styles.cardHeader}>
-                          <span style={styles.subjectTag}>📖 {n.subject}</span>
-                          <span style={styles.dateTag}>🗓️ {n.date}</span>
-                        </div>
-
-                        <h4 style={styles.fileName}>{n.fileName}</h4>
-
-                        {n.pdfInfo && (
-                          <p style={styles.pdfInfoTag}>
-                            ℹ️ {n.pdfInfo}
-                          </p>
-                        )}
-
-                        <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
-                      </div>
-                      
-                      <div style={styles.cardActions}>
-                        <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
-                          👁️ দেখুন
-                        </a>
-
-                        <button 
-                          onClick={() => handleDownload(n.fileUrl, n.fileName)} 
-                          style={styles.downloadBtn}
-                        >
-                          📥 ডাউনলোড
-                        </button>
-
-                        <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
-                          🔗
-                        </button>
-
-                        {isAdmin && (
-                          <>
-                            <button 
-                              onClick={() => handleRename(n.id, n.fileName, n.subject, n.pdfInfo)} 
-                              style={styles.renameBtn}
-                              title="Rename / Edit"
-                            >
-                              ✏️
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(n.id)} 
-                              style={styles.deleteBtn}
-                              title="Delete File"
-                            >
-                              🗑️
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                {filteredNotes.map((n) => (
+                  <NoteCardItem 
+                    key={n.id} 
+                    note={n} 
+                    user={user} 
+                    allUsers={allUsers}
+                    isModOrAdmin={isModOrAdmin}
+                    handleLikeToggle={handleLikeToggle}
+                    handleAddComment={handleAddComment}
+                    commentText={commentText}
+                    setCommentText={setCommentText}
+                    handleDownload={handleDownload}
+                    copyLink={copyLink}
+                    handleDelete={handleDelete}
+                    setViewingProfile={setViewingProfile}
+                    getUserRole={getUserRole}
+                  />
+                ))}
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* FOOTER */}
-      <footer style={styles.footer}>
-        <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8", fontWeight: "bold"}}>Anondo</a></p>
-        
-        <div style={styles.contactContainer}>
-          <div style={styles.contactItem}>
-            <a 
-              href={`https://wa.me/${WHATSAPP_NUMBER}`} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={styles.iconLink}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#22c55e">
-                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.51 1.039 3.531l-.683 2.493 2.562-.672c.983.537 2.109.845 3.303.846 3.18 0 5.767-2.586 5.768-5.766.001-3.181-2.585-5.798-5.766-5.798zm3.383 8.163c-.141.397-.822.771-1.134.818-.313.048-.718.082-2.316-.543-1.898-.742-3.111-2.679-3.206-2.806-.095-.127-.768-1.021-.768-1.948 0-.927.487-1.381.66-1.571.173-.19.378-.238.504-.238.126 0 .252.001.362.007.116.006.273-.044.425.321.157.378.536 1.309.584 1.405.048.096.08.209.016.335-.064.126-.096.205-.189.315-.095.109-.199.244-.284.328-.096.095-.196.198-.085.388.111.19.493.813 1.058 1.317.727.648 1.341.849 1.531.944.19.095.301.079.412-.048.111-.127.473-.552.6-.741.127-.19.252-.158.425-.095.173.063 1.103.52 1.293.615.19.095.316.142.363.221.047.079.047.458-.094.855z"/>
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.178L1.8 22.2l5.143-1.587C8.384 21.492 10.125 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.71 0-3.32-.472-4.707-1.291l-.337-.2-3.048.941.956-2.972-.224-.352C3.785 14.73 3.2 13.42 3.2 12c0-4.852 3.948-8.8 8.8-8.8s8.8 3.948 8.8 8.8-3.948 8.8-8.8 8.8z"/>
-              </svg>
-            </a>
-            <span style={styles.phoneText}>(+8801522107909) only for message</span>
-          </div>
+      {/* 🔍 PUBLIC PROFILE VIEW MODAL */}
+      {viewingProfile && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <button onClick={() => setViewingProfile(null)} style={styles.closeModalBtn}>✖</button>
+            <div style={{ textAlign: "center", marginBottom: "15px" }}>
+              <img 
+                src={viewingProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
+                alt="Profile" 
+                style={{ width: "85px", height: "85px", borderRadius: "50%", objectFit: "cover", border: "3px solid #38bdf8" }}
+              />
+              <h3 style={{ margin: "8px 0 4px 0", color: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                {viewingProfile.displayName || "User Profile"}
+                <RoleBadge role={getUserRole(viewingProfile.email)} />
+              </h3>
 
-          <div style={styles.contactItem}>
-            <a 
-              href={FACEBOOK_URL} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={styles.iconLink}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#38bdf8">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-              <span style={styles.fbText}>Facebook Profile</span>
-            </a>
+              {/* POINTS & LEADERBOARD RANK IN MODAL */}
+              <div style={styles.modalScoreBar}>
+                <span style={styles.modalBadge}>⭐ {viewingProfile.points || 0} Points</span>
+                <span style={styles.modalBadgeRank}>🏆 Leaderboard Rank: {getUserRank(viewingProfile.uid)}</span>
+              </div>
+            </div>
+
+            <div style={styles.profileDetailsList}>
+              <p><b>🎓 Dept. Roll:</b> {viewingProfile.deptRoll || "N/A"}</p>
+              <p><b>📱 WhatsApp:</b> {viewingProfile.whatsapp ? <a href={`https://wa.me/${viewingProfile.whatsapp}`} target="_blank" rel="noreferrer" style={{ color: "#22c55e" }}>{viewingProfile.whatsapp}</a> : "N/A"}</p>
+              <p><b>✉️ Email:</b> {viewingProfile.email || "N/A"}</p>
+              <p><b>🎂 Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
+              <p><b>📍 Address:</b> {viewingProfile.address || "N/A"}</p>
+              {viewingProfile.facebook && (
+                <p><b>🌐 Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" style={{ color: "#38bdf8" }}>Profile Link</a></p>
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      <footer style={styles.footer}>
+        <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8"}}>Anondo</a></p>
       </footer>
     </div>
   );
 }
 
-// 🎨 RGB Light Dark Glow Theme Styles
+// 🏷️ Role Badge Component (Admin / Moderator / Student)
+function RoleBadge({ role }) {
+  if (role === "Admin") {
+    return <span style={styles.adminBadge}>👑 Admin</span>;
+  }
+  if (role === "Moderator") {
+    return <span style={styles.modBadge}>🛡️ Moderator</span>;
+  }
+  return <span style={styles.studentBadge}>Student</span>;
+}
+
+// 🎴 Reusable Note Item Component
+function NoteCardItem({ note, user, allUsers, isModOrAdmin, handleLikeToggle, handleAddComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, setViewingProfile, getUserRole }) {
+  const hasLiked = note.likes?.includes(user?.uid);
+  const uploaderProfile = allUsers.find(u => u.uid === note.uploaderUid);
+  const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email);
+
+  return (
+    <div style={styles.noteCard}>
+      <div>
+        <div style={styles.cardHeader}>
+          <span style={styles.subjectTag}>📖 {note.subject}</span>
+          <span style={styles.dateTag}>🗓️ {note.date}</span>
+        </div>
+
+        <h4 style={styles.fileName}>{note.fileName}</h4>
+        {note.pdfInfo && <p style={styles.pdfInfoTag}>ℹ️ {note.pdfInfo}</p>}
+        
+        <p style={styles.uploaderText}>
+          Uploaded by:{" "}
+          <b 
+            onClick={() => uploaderProfile && setViewingProfile(uploaderProfile)} 
+            style={{ color: "#38bdf8", cursor: "pointer", textDecoration: "underline", inlineFlex: "align-items-center" }}
+          >
+            {note.uploadedBy}
+          </b>
+          {" "}<RoleBadge role={uploaderRole} />
+        </p>
+      </div>
+
+      <div style={styles.cardActions}>
+        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>👁️ দেখুন</a>
+        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}>📥 ডাউনলোড</button>
+        <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}>🔗</button>
+        {isModOrAdmin && <button onClick={() => handleDelete(note.id)} style={styles.deleteBtn}>🗑️</button>}
+      </div>
+
+      {/* LIKE & COMMENT SECTION */}
+      <div style={styles.interactiveBox}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <button 
+            onClick={() => handleLikeToggle(note)} 
+            style={{ ...styles.likeBtn, backgroundColor: hasLiked ? "#0284c7" : "#334155" }}
+          >
+            👍 {note.likes?.length || 0} Likes
+          </button>
+          <span style={{ fontSize: "11px", color: "#cbd5e1" }}>💬 {note.comments?.length || 0} Comments</span>
+        </div>
+
+        <div style={styles.commentList}>
+          {note.comments?.map((c) => {
+            const commentUserRole = getUserRole(c.userEmail);
+            return (
+              <div key={c.id} style={styles.singleComment}>
+                <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
+              </div>
+            );
+          })}
+        </div>
+
+        <form onSubmit={(e) => handleAddComment(e, note)} style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+          <input 
+            type="text" 
+            placeholder="কমেন্ট লিখুন..." 
+            value={commentText[note.id] || ""} 
+            onChange={(e) => setCommentText({ ...commentText, [note.id]: e.target.value })}
+            style={styles.commentInput}
+          />
+          <button type="submit" style={styles.sendCommentBtn}>পাঠান</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const styles = {
-  container: {
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    background: "linear-gradient(-45deg, #0f172a, #1e1b4b, #0f2027, #111827)",
-    backgroundSize: "400% 400%",
-    animation: "rgbAnimation 15s ease infinite",
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    color: "#f8fafc"
-  },
-  header: {
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
-    backdropFilter: "blur(12px)",
-    padding: "15px 5%",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottom: "1px solid rgba(56, 189, 248, 0.2)",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
-    flexWrap: "wrap",
-    gap: "10px"
-  },
-  logo: { fontSize: "20px", color: "#38bdf8", margin: 0, fontWeight: "bold", textShadow: "0 0 10px rgba(56,189,248,0.5)" },
+  container: { fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", backgroundColor: "#0f172a", minHeight: "100vh", color: "#f8fafc" },
+  header: { backgroundColor: "rgba(15, 23, 42, 0.9)", padding: "15px 5%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", flexWrap: "wrap", gap: "10px" },
+  logo: { fontSize: "20px", color: "#38bdf8", margin: 0, fontWeight: "bold" },
   subLogo: { fontSize: "11px", color: "#94a3b8", margin: 0 },
-  branding: { fontSize: "12px", fontWeight: "600", color: "#cbd5e1" },
+  branding: { fontSize: "12px", color: "#cbd5e1" },
   brandLink: { color: "#4ade80", textDecoration: "none", fontWeight: "bold" },
-  
   navTabs: { display: "flex", gap: "8px" },
-  navBtn: { padding: "8px 16px", border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" },
-  activeNavBtn: { backgroundColor: "#0284c7", color: "#fff", borderColor: "#38bdf8", boxShadow: "0 0 10px rgba(2,132,199,0.5)" },
+  navBtn: { padding: "8px 14px", border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer", fontSize: "13px" },
+  activeNavBtn: { backgroundColor: "#0284c7", color: "#fff", borderColor: "#38bdf8" },
 
   heroSection: { maxWidth: "450px", margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
-  authCard: { 
-    backgroundColor: "rgba(30, 41, 59, 0.7)", 
-    backdropFilter: "blur(16px)",
-    padding: "25px", 
-    borderRadius: "16px", 
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.5)", 
-    textAlign: "center" 
-  },
+  authCard: { backgroundColor: "#1e293b", padding: "25px", borderRadius: "16px", border: "1px solid rgba(255, 255, 255, 0.1)", textAlign: "center" },
   tabContainer: { display: "flex", justifyContent: "center", marginBottom: "20px", gap: "10px" },
-  tab: { padding: "8px 20px", border: "none", background: "#334155", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
-  activeTab: { background: "#0284c7", color: "#fff", boxShadow: "0 0 10px rgba(2,132,199,0.5)" },
+  tab: { padding: "8px 20px", border: "none", background: "#334155", color: "#cbd5e1", borderRadius: "8px", cursor: "pointer" },
+  activeTab: { background: "#0284c7", color: "#fff" },
   googleBtn: { width: "100%", padding: "12px", backgroundColor: "#0284c7", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   form: { display: "flex", flexDirection: "column", gap: "12px" },
-  input: { 
-    padding: "12px", 
-    borderRadius: "8px", 
-    border: "1px solid rgba(255,255,255,0.15)", 
-    outline: "none", 
-    backgroundColor: "rgba(15, 23, 42, 0.6)", 
-    color: "#fff",
-    fontSize: "14px" 
-  },
+  input: { padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "#0f172a", color: "#fff", fontSize: "13px", width: "100%", boxSizing: "border-box" },
+  label: { display: "block", fontSize: "12px", color: "#cbd5e1", marginBottom: "4px" },
   submitBtn: { padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   
-  mainFeed: { maxWidth: "900px", margin: "20px auto", padding: "0 15px", width: "100%", boxSizing: "border-box" },
-  userBar: { 
-    display: "flex", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
-    backgroundColor: "rgba(30, 41, 59, 0.6)", 
-    backdropFilter: "blur(12px)",
-    padding: "12px 15px", 
-    borderRadius: "12px", 
-    marginBottom: "15px", 
-    border: "1px solid rgba(255, 255, 255, 0.1)" 
-  },
-  badge: { backgroundColor: "#0284c7", color: "#fff", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px" },
-  adminBadge: { backgroundColor: "#f59e0b", color: "#000", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px", fontWeight: "bold" },
+  mainFeed: { maxWidth: "900px", margin: "20px auto", padding: "0 15px" },
+  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#1e293b", padding: "12px 15px", borderRadius: "12px", marginBottom: "15px" },
+  
+  studentBadge: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "6px", fontSize: "10px" },
+  adminBadge: { backgroundColor: "#f59e0b", color: "#000", padding: "2px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: "bold", boxShadow: "0 0 6px rgba(245, 158, 11, 0.6)" },
+  modBadge: { backgroundColor: "#8b5cf6", color: "#fff", padding: "2px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: "bold", boxShadow: "0 0 6px rgba(139, 92, 246, 0.6)" },
+
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
 
-  // Active Users Panel
-  activeUsersPanel: {
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    backdropFilter: "blur(12px)",
-    padding: "12px 15px",
-    borderRadius: "12px",
-    marginBottom: "20px",
-    border: "1px solid rgba(34, 197, 94, 0.3)"
-  },
-  pulseGreenDot: {
-    width: "10px",
-    height: "10px",
-    backgroundColor: "#22c55e",
-    borderRadius: "50%",
-    display: "inline-block",
-    animation: "pulseDot 2s infinite"
-  },
-  activeUserChipsContainer: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" },
-  userChip: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#86efac", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", border: "1px solid rgba(34,197,94,0.3)" },
+  profileSection: { backgroundColor: "#1e293b", padding: "20px", borderRadius: "16px", marginBottom: "25px" },
+  
+  scoreSummaryBox: { display: "flex", justifyContent: "space-around", alignItems: "center", backgroundColor: "#0f172a", padding: "15px", borderRadius: "12px", marginBottom: "20px", border: "1px solid rgba(56, 189, 248, 0.3)" },
+  scoreBoxItem: { textAlign: "center", display: "flex", flexDirection: "column" },
+  scoreBoxLabel: { fontSize: "12px", color: "#cbd5e1" },
+  scoreBoxValue: { fontSize: "20px", fontWeight: "bold", color: "#fbbf24", marginTop: "4px" },
+  scoreBoxDivider: { width: "1px", height: "35px", backgroundColor: "#334155" },
 
-  // Dashboard Specific Styles
+  profileForm: { display: "flex", flexDirection: "column", gap: "15px" },
+  inputGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" },
+  saveProfileBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", marginTop: "10px" },
+
+  scoreBoardCard: { backgroundColor: "#1e293b", padding: "18px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #f59e0b" },
+  leaderboardList: { display: "flex", flexDirection: "column", gap: "8px" },
+  leaderItem: { display: "flex", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "8px", fontSize: "13px", alignItems: "center" },
+  scoreBadge: { color: "#4ade80", fontWeight: "bold" },
+
+  userListGrid: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" },
+  userCardBtn: { border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px" },
+  infoIconBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "6px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+
   dashboardSection: { marginBottom: "30px" },
-  userSelectBtn: { border: "none", color: "#fff", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-
-  // Search Section
-  searchSection: { 
-    backgroundColor: "rgba(30, 41, 59, 0.6)", 
-    backdropFilter: "blur(12px)",
-    padding: "18px", 
-    borderRadius: "16px", 
-    marginBottom: "20px", 
-    border: "1px solid rgba(255, 255, 255, 0.1)" 
-  },
+  searchSection: { backgroundColor: "#1e293b", padding: "18px", borderRadius: "16px", marginBottom: "20px" },
   filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
-  searchInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", outline: "none", fontSize: "13px", boxSizing: "border-box", backgroundColor: "rgba(15, 23, 42, 0.6)", color: "#fff" },
-  dateFilterInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", outline: "none", fontSize: "13px", boxSizing: "border-box", backgroundColor: "rgba(15, 23, 42, 0.6)", color: "#fff" },
-  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", zIndex: 10, maxHeight: "200px", overflowY: "auto", marginTop: "4px" },
-  suggestionItem: { padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "13px", color: "#cbd5e1" },
-  activeFilterTag: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "12px" },
-  filterBadge: { backgroundColor: "#0284c7", color: "#fff", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" },
-  resetBtn: { backgroundColor: "rgba(239,68,68,0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  searchInput: { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "#0f172a", color: "#fff", fontSize: "13px" },
+  dateFilterInput: { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", backgroundColor: "#0f172a", color: "#fff", fontSize: "13px" },
+  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", zIndex: 10, maxHeight: "150px", overflowY: "auto" },
+  suggestionItem: { padding: "8px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1" },
 
-  // Upload Card
-  uploadCard: { 
-    backgroundColor: "rgba(30, 41, 59, 0.6)", 
-    backdropFilter: "blur(12px)",
-    padding: "20px", 
-    borderRadius: "16px", 
-    marginBottom: "25px", 
-    border: "1px solid rgba(255, 255, 255, 0.1)" 
-  },
+  uploadCard: { backgroundColor: "#1e293b", padding: "20px", borderRadius: "16px", marginBottom: "25px" },
   uploadForm: { display: "flex", flexDirection: "column" },
   inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
-  uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", boxShadow: "0 0 10px rgba(2,132,199,0.4)" },
+  uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" },
   
-  // Note Cards Grid
   notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" },
-  noteCard: { 
-    backgroundColor: "rgba(30, 41, 59, 0.7)", 
-    backdropFilter: "blur(12px)",
-    padding: "16px", 
-    borderRadius: "12px", 
-    border: "1px solid rgba(56, 189, 248, 0.2)", 
-    boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-    display: "flex", 
-    flexDirection: "column", 
-    justifyContent: "space-between" 
-  },
-  cardHeader: { display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start", marginBottom: "12px" },
-  subjectTag: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", lineHeight: "1.4", wordBreak: "break-word", width: "100%", boxSizing: "border-box", border: "1px solid rgba(56,189,248,0.3)" },
-  dateTag: { backgroundColor: "rgba(255,255,255,0.05)", color: "#94a3b8", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" },
-  fileName: { fontSize: "14px", color: "#f8fafc", margin: "5px 0", wordBreak: "break-all", fontWeight: "600" },
-  pdfInfoTag: { backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "6px 10px", borderRadius: "6px", fontSize: "12px", margin: "6px 0", border: "1px solid rgba(52,211,153,0.3)" },
-  uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "15px" },
+  noteCard: { backgroundColor: "#1e293b", padding: "16px", borderRadius: "12px", border: "1px solid rgba(56, 189, 248, 0.2)", display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  cardHeader: { display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" },
+  subjectTag: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "5px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
+  dateTag: { color: "#94a3b8", fontSize: "11px" },
+  fileName: { fontSize: "14px", color: "#f8fafc", margin: "5px 0" },
+  pdfInfoTag: { backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "4px", borderRadius: "6px", fontSize: "12px" },
+  uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "10px", display: "flex", alignItems: "center", gap: "5px" },
   
-  cardActions: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" },
-  viewBtn: { flex: "1 1 auto", backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
-  downloadBtn: { flex: "1 1 auto", backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" },
-  copyBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-  renameBtn: { backgroundColor: "rgba(245, 158, 11, 0.2)", color: "#fbbf24", border: "1px solid #f59e0b", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
-  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
+  cardActions: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" },
+  viewBtn: { flex: "1", backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "6px", borderRadius: "6px", fontSize: "12px" },
+  downloadBtn: { flex: "1", backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+  copyBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
+  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "6px", borderRadius: "6px", cursor: "pointer" },
 
-  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "rgba(15, 23, 42, 0.8)", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "12px", color: "#94a3b8" },
-  contactContainer: { marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "15px", flexWrap: "wrap" },
-  contactItem: { display: "flex", alignItems: "center", gap: "6px" },
-  iconLink: { display: "inline-flex", alignItems: "center", gap: "5px", textDecoration: "none" },
-  phoneText: { fontSize: "12px", color: "#cbd5e1", fontWeight: "500" },
-  fbText: { fontSize: "12px", color: "#38bdf8", fontWeight: "600" }
+  interactiveBox: { borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "10px" },
+  likeBtn: { color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+  commentList: { maxHeight: "80px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#0f172a", padding: "6px", borderRadius: "6px" },
+  singleComment: { fontSize: "11px", color: "#cbd5e1" },
+  commentInput: { flex: 1, padding: "6px", borderRadius: "4px", border: "1px solid #334155", backgroundColor: "#0f172a", color: "#fff", fontSize: "12px" },
+  sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" },
+
+  // Modal Styles
+  modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
+  modalCard: { backgroundColor: "#1e293b", padding: "20px", borderRadius: "16px", maxWidth: "380px", width: "100%", position: "relative", border: "1px solid rgba(56,189,248,0.3)" },
+  closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#f87171", fontSize: "16px", cursor: "pointer" },
+  modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" },
+  modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" },
+  modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" },
+  profileDetailsList: { backgroundColor: "#0f172a", padding: "12px", borderRadius: "10px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "8px" },
+
+  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#0f172a", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "12px", color: "#94a3b8" }
 };
 
 export default App;
