@@ -172,10 +172,18 @@ function App() {
     };
   }, []);
 
-  const leaderboardUsers = [...allUsers].sort((a, b) => (b.points || 0) - (a.points || 0));
+  // 👑 LEADERBOARD SORTING LOGIC: ADMIN TOPS ALWAYS, NON-ADMINS BY POINTS
+  const admins = allUsers.filter(u => getUserRole(u.email, u.uid) === "Admin");
+  const nonAdmins = allUsers
+    .filter(u => getUserRole(u.email, u.uid) !== "Admin")
+    .sort((a, b) => (b.points || 0) - (a.points || 0));
 
-  const getUserRank = (targetUid) => {
-    const rankIndex = leaderboardUsers.findIndex(u => u.uid === targetUid);
+  const leaderboardUsers = [...admins, ...nonAdmins];
+
+  // RANK CALCULATOR FOR NON-ADMINS ONLY
+  const getUserRank = (targetUid, targetEmail) => {
+    if (getUserRole(targetEmail, targetUid) === "Admin") return "👑 Admin";
+    const rankIndex = nonAdmins.findIndex(u => u.uid === targetUid);
     return rankIndex !== -1 ? `#${rankIndex + 1}` : "N/A";
   };
 
@@ -607,7 +615,7 @@ function App() {
                   <RoleBadge role={currentUserRole} />
                 </span>
                 <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
-                  ⭐ {myProfile.points} Points | 🏆 Rank {getUserRank(user.uid)}
+                  {isAdmin ? "👑 Owner / Admin" : `⭐ ${myProfile.points} Points | 🏆 Rank ${getUserRank(user.uid, user.email)}`}
                 </span>
               </div>
             </div>
@@ -628,13 +636,13 @@ function App() {
               
               <div style={styles.scoreSummaryBox}>
                 <div style={styles.scoreBoxItem}>
-                  <span style={styles.scoreBoxLabel}>⭐ Total Points</span>
-                  <span style={styles.scoreBoxValue}>{myProfile.points}</span>
+                  <span style={styles.scoreBoxLabel}>⭐ Status / Points</span>
+                  <span style={styles.scoreBoxValue}>{isAdmin ? "👑 Admin" : myProfile.points}</span>
                 </div>
                 <div style={styles.scoreBoxDivider}></div>
                 <div style={styles.scoreBoxItem}>
                   <span style={styles.scoreBoxLabel}>🏆 Leaderboard Rank</span>
-                  <span style={styles.scoreBoxValue}>{getUserRank(user.uid)}</span>
+                  <span style={styles.scoreBoxValue}>{getUserRank(user.uid, user.email)}</span>
                 </div>
               </div>
 
@@ -738,11 +746,17 @@ function App() {
                 <div style={styles.leaderboardList}>
                   {leaderboardUsers.map((u, index) => {
                     const uRole = getUserRole(u.email, u.uid);
+                    const isUserAdmin = uRole === "Admin";
+
                     return (
-                      <div key={u.id} style={styles.leaderItem}>
+                      <div key={u.id} style={{ 
+                        ...styles.leaderItem,
+                        backgroundColor: isUserAdmin ? "rgba(245, 158, 11, 0.15)" : "#0f172a",
+                        border: isUserAdmin ? "1px solid #f59e0b" : "none"
+                      }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontWeight: "bold", color: index === 0 ? "#fbbf24" : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : "#cbd5e1" }}>
-                            #{index + 1}
+                          <span style={{ fontWeight: "bold", color: isUserAdmin ? "#f59e0b" : index === admins.length ? "#fbbf24" : index === admins.length + 1 ? "#94a3b8" : index === admins.length + 2 ? "#b45309" : "#cbd5e1" }}>
+                            {isUserAdmin ? "👑 Top" : `#${index - admins.length + 1}`}
                           </span>
                           <img src={u.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt="u" style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover" }} />
                           <span 
@@ -754,8 +768,10 @@ function App() {
                           </span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span style={styles.scoreBadge}>⭐ {u.points || 0} Pts</span>
-                          {isAdmin && uRole !== "Admin" && (
+                          {!isUserAdmin && (
+                            <span style={styles.scoreBadge}>⭐ {u.points || 0} Pts</span>
+                          )}
+                          {isAdmin && !isUserAdmin && (
                             <button 
                               onClick={() => handleToggleModerator(u)}
                               style={styles.makeModBtn}
@@ -986,8 +1002,14 @@ function App() {
               </h3>
 
               <div style={styles.modalScoreBar}>
-                <span style={styles.modalBadge}>⭐ {viewingProfile.points || 0} Points</span>
-                <span style={styles.modalBadgeRank}>🏆 Leaderboard Rank: {getUserRank(viewingProfile.uid)}</span>
+                {getUserRole(viewingProfile.email, viewingProfile.uid) === "Admin" ? (
+                  <span style={styles.modalBadgeAdmin}>👑 Website Owner</span>
+                ) : (
+                  <>
+                    <span style={styles.modalBadge}>⭐ {viewingProfile.points || 0} Points</span>
+                    <span style={styles.modalBadgeRank}>🏆 Leaderboard Rank: {getUserRank(viewingProfile.uid, viewingProfile.email)}</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1082,7 +1104,7 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleReact
       <div style={styles.interactiveBox}>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
           
-          {/* ❤️ LOVE BUTTON WITH ANIMATION CLASS */}
+          {/* ❤️ LOVE BUTTON */}
           <button 
             onClick={() => handleReactionToggle(note, "love")} 
             className={hasLoved ? "reaction-btn active-pop" : "reaction-btn"}
@@ -1095,7 +1117,7 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, handleReact
             ❤️ {note.loves?.length || 0}
           </button>
 
-          {/* 🥰 CARE BUTTON WITH ANIMATION CLASS */}
+          {/* 🥰 CARE BUTTON */}
           <button 
             onClick={() => handleReactionToggle(note, "care")} 
             className={hasCared ? "reaction-btn active-pop" : "reaction-btn"}
@@ -1213,7 +1235,7 @@ const styles = {
 
   scoreBoardCard: { backgroundColor: "#1e293b", padding: "18px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #f59e0b" },
   leaderboardList: { display: "flex", flexDirection: "column", gap: "8px" },
-  leaderItem: { display: "flex", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "8px", fontSize: "13px", alignItems: "center", flexWrap: "wrap", gap: "8px" },
+  leaderItem: { display: "flex", justifyContent: "space-between", padding: "8px 12px", borderRadius: "8px", fontSize: "13px", alignItems: "center", flexWrap: "wrap", gap: "8px" },
   scoreBadge: { color: "#4ade80", fontWeight: "bold" },
   makeModBtn: { backgroundColor: "#8b5cf6", color: "#fff", border: "none", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" },
 
@@ -1264,6 +1286,7 @@ const styles = {
   closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#f87171", fontSize: "16px", cursor: "pointer" },
   modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" },
   modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" },
+  modalBadgeAdmin: { backgroundColor: "#f59e0b", color: "#000", padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" },
   modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" },
   profileDetailsList: { backgroundColor: "#0f172a", padding: "12px", borderRadius: "10px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "8px" },
 
