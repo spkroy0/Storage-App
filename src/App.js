@@ -193,6 +193,25 @@ function App() {
     alert("নোটের লিংক কপি করা হয়েছে!");
   };
 
+  // 📥 Force Download Helper Function
+  const handleDownload = async (fileUrl, fileName) => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName || "Note-File";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      // Fallback in case of CORS restriction
+      window.open(fileUrl, "_blank");
+    }
+  };
+
   // Filter Book Suggestions for Search Bar
   const suggestedBooks = BOOK_LIST.filter(book => 
     book.toLowerCase().includes(searchQuery.toLowerCase())
@@ -310,7 +329,7 @@ function App() {
             
             <div style={styles.filterGrid}>
               {/* Auto suggestion Search Bar */}
-              <div style={{ position: "relative", flex: 2 }}>
+              <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
                 <input 
                   type="text" 
                   placeholder="বইয়ের নাম বা কোড দিয়ে খুঁজুন..." 
@@ -348,7 +367,7 @@ function App() {
               </div>
 
               {/* Calendar Filter */}
-              <div style={{ flex: 1, display: "flex", gap: "5px", alignItems: "center" }}>
+              <div style={{ flex: 1, minWidth: "150px" }}>
                 <input 
                   type="date" 
                   value={selectedDateFilter}
@@ -373,7 +392,7 @@ function App() {
                   }} 
                   style={styles.resetBtn}
                 >
-                  ✖ ফিল্টার রিমুভ করুন
+                  ✖ ফিল্টার ক্লিয়ার করুন
                 </button>
               </div>
             )}
@@ -441,20 +460,31 @@ function App() {
               filteredNotes.map((n) => (
                 <div key={n.id} style={styles.noteCard}>
                   <div>
+                    {/* Mobile Friendly Card Header */}
                     <div style={styles.cardHeader}>
-                      <span style={styles.subjectTag}>{n.subject}</span>
+                      <span style={styles.subjectTag}>📖 {n.subject}</span>
                       <span style={styles.dateTag}>🗓️ {n.date}</span>
                     </div>
+
                     <h4 style={styles.fileName}>{n.fileName}</h4>
                     <p style={styles.uploaderText}>Uploaded by: <b>{n.uploadedBy}</b></p>
                   </div>
                   
+                  {/* Actions Bar with View & Download */}
                   <div style={styles.cardActions}>
                     <a href={n.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>
-                      📄 দেখুন
+                      👁️ দেখুন
                     </a>
-                    <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn}>
-                      🔗 শেয়ার
+
+                    <button 
+                      onClick={() => handleDownload(n.fileUrl, n.fileName)} 
+                      style={styles.downloadBtn}
+                    >
+                      📥 ডাউনলোড
+                    </button>
+
+                    <button onClick={() => copyLink(n.fileUrl)} style={styles.copyBtn} title="শেয়ার লিংক">
+                      🔗
                     </button>
 
                     {/* 👑 Admin Actions */}
@@ -488,10 +518,9 @@ function App() {
       <footer style={styles.footer}>
         <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
         
-        {/* Contact Information with Icons */}
+        {/* Contact Information */}
         <div style={styles.contactContainer}>
           <div style={styles.contactItem}>
-            {/* WhatsApp Icon */}
             <a 
               href={`https://wa.me/${WHATSAPP_NUMBER}`} 
               target="_blank" 
@@ -507,7 +536,6 @@ function App() {
           </div>
 
           <div style={styles.contactItem}>
-            {/* Facebook Icon */}
             <a 
               href={FACEBOOK_URL} 
               target="_blank" 
@@ -529,59 +557,64 @@ function App() {
 const styles = {
   container: { fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", backgroundColor: "#f8fafc", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "space-between" },
   header: { backgroundColor: "#ffffff", padding: "15px 5%", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", borderBottom: "1px solid #e2e8f0" },
-  logo: { fontSize: "22px", color: "#2563eb", margin: 0, fontWeight: "bold" },
-  subLogo: { fontSize: "12px", color: "#64748b", margin: 0 },
-  branding: { fontSize: "13px", fontWeight: "600", color: "#475569" },
+  logo: { fontSize: "20px", color: "#2563eb", margin: 0, fontWeight: "bold" },
+  subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
+  branding: { fontSize: "12px", fontWeight: "600", color: "#475569" },
   brandLink: { color: "#16a34a", textDecoration: "none", fontWeight: "bold" },
   heroSection: { maxWidth: "450px", margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
-  authCard: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)", textAlign: "center" },
+  authCard: { backgroundColor: "#ffffff", padding: "25px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)", textAlign: "center" },
   tabContainer: { display: "flex", justifyContent: "center", marginBottom: "20px", gap: "10px" },
   tab: { padding: "8px 20px", border: "none", background: "#f1f5f9", borderRadius: "8px", cursor: "pointer", fontWeight: "500" },
   activeTab: { background: "#2563eb", color: "#fff" },
   googleBtn: { width: "100%", padding: "12px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   form: { display: "flex", flexDirection: "column", gap: "12px" },
-  input: { padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", backgroundColor: "#fff" },
+  input: { padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", backgroundColor: "#fff", fontSize: "14px" },
   submitBtn: { padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
-  mainFeed: { maxWidth: "900px", margin: "30px auto", padding: "0 20px", width: "100%" },
-  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "15px 20px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" },
-  badge: { backgroundColor: "#dbeafe", color: "#1e40af", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px" },
-  adminBadge: { backgroundColor: "#fef3c7", color: "#d97706", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px", fontWeight: "bold" },
-  logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" },
+  mainFeed: { maxWidth: "900px", margin: "20px auto", padding: "0 15px", width: "100%", boxSizing: "border-box" },
+  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "12px 15px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" },
+  badge: { backgroundColor: "#dbeafe", color: "#1e40af", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px" },
+  adminBadge: { backgroundColor: "#fef3c7", color: "#d97706", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "8px", fontWeight: "bold" },
+  logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
   
-  // Search & Filter Styles
-  searchSection: { backgroundColor: "#fff", padding: "20px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #e2e8f0" },
+  // Search & Filter Styles (Mobile Responsive)
+  searchSection: { backgroundColor: "#fff", padding: "18px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #e2e8f0" },
   filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
-  searchInput: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" },
-  dateFilterInput: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" },
+  searchInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "13px", boxSizing: "border-box" },
+  dateFilterInput: { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "13px", boxSizing: "border-box" },
   suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 10, maxHeight: "200px", overflowY: "auto", marginTop: "4px" },
-  suggestionItem: { padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #f1f5f9", fontSize: "13px", color: "#1e293b" },
-  activeFilterTag: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "13px" },
+  suggestionItem: { padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #f1f5f9", fontSize: "13px", color: "#1e293b" },
+  activeFilterTag: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "12px" },
   filterBadge: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" },
   resetBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
 
-  uploadCard: { backgroundColor: "#fff", padding: "25px", borderRadius: "16px", marginBottom: "30px", border: "1px solid #e2e8f0" },
+  uploadCard: { backgroundColor: "#fff", padding: "20px", borderRadius: "16px", marginBottom: "25px", border: "1px solid #e2e8f0" },
   uploadForm: { display: "flex", flexDirection: "column" },
-  inputGroup: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
-  uploadBtn: { backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
-  notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "20px" },
-  noteCard: { backgroundColor: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" },
-  cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
-  subjectTag: { backgroundColor: "#f1f5f9", color: "#0f172a", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
-  dateTag: { fontSize: "12px", color: "#64748b" },
-  fileName: { fontSize: "15px", color: "#1e293b", margin: "10px 0 5px 0", wordBreak: "break-all" },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
+  uploadBtn: { backgroundColor: "#2563eb", color: "#fff", border: "none", padding: "12px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" },
+  
+  // Note Card Styles (Optimized for Mobile)
+  notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" },
+  noteCard: { backgroundColor: "#fff", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  cardHeader: { display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start", marginBottom: "12px" },
+  subjectTag: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", lineHeight: "1.4", wordBreak: "break-word", width: "100%", boxSizing: "border-box" },
+  dateTag: { backgroundColor: "#f1f5f9", color: "#475569", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600" },
+  fileName: { fontSize: "14px", color: "#1e293b", margin: "5px 0 5px 0", wordBreak: "break-all", fontWeight: "600" },
   uploaderText: { fontSize: "12px", color: "#94a3b8", marginBottom: "15px" },
-  cardActions: { display: "flex", gap: "5px" },
-  viewBtn: { flex: 2, backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "8px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
-  copyBtn: { flex: 1, backgroundColor: "#f1f5f9", color: "#334155", border: "none", padding: "8px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
-  renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
-  deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer" },
-  footer: { textAlign: "center", padding: "20px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "13px", color: "#64748b" },
-  contactContainer: { marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "20px", flexWrap: "wrap" },
+  
+  cardActions: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" },
+  viewBtn: { flex: "1 1 auto", backgroundColor: "#0284c7", color: "#fff", textDecoration: "none", textAlign: "center", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" },
+  downloadBtn: { flex: "1 1 auto", backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" },
+  copyBtn: { backgroundColor: "#f1f5f9", color: "#334155", border: "none", padding: "8px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" },
+  renameBtn: { backgroundColor: "#fef3c7", color: "#d97706", border: "none", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
+  deleteBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" },
+
+  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#fff", borderTop: "1px solid #e2e8f0", fontSize: "12px", color: "#64748b" },
+  contactContainer: { marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "15px", flexWrap: "wrap" },
   contactItem: { display: "flex", alignItems: "center", gap: "6px" },
   iconLink: { display: "inline-flex", alignItems: "center", gap: "5px", textDecoration: "none" },
-  phoneText: { fontSize: "13px", color: "#334155", fontWeight: "500" },
-  fbText: { fontSize: "13px", color: "#1877F2", fontWeight: "600" }
+  phoneText: { fontSize: "12px", color: "#334155", fontWeight: "500" },
+  fbText: { fontSize: "12px", color: "#1877F2", fontWeight: "600" }
 };
 
 export default App;
