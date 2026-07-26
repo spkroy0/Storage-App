@@ -9,10 +9,28 @@ import {
 } from "firebase/auth";
 import { collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 
+// বুকলিস্ট অনুযায়ী বিষয়সমূহের তালিকা (অনার্স ১ম বর্ষ, শিক্ষাবর্ষ: ২০২৪-২০২৫)
+const BOOK_LIST = [
+  "বাংলাদেশের ইতিহাস: ভাষা, সংস্কৃতি ও পরিচয় [219901]",
+  "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) [219903]",
+  "মৌলিক গণিত [213701]",
+  "ক্যালকুলাস-I [213703]",
+  "যোগাশ্রয়ী বীজগণিত ও বৈশ্লেষিক জ্যামিতি [213705]",
+  "গণিত (Lab-Practical) [213706]",
+  "রসায়ন (ব্যবহারিক-I) [212810]",
+  "পরিসংখ্যান (Lab) [213610]",
+  "রসায়ন-I [212807]",
+  "পদার্থবিজ্ঞান-I (বলবিদ্যা, পদার্থের ধর্ম, তরঙ্গ ও আলোকবিদ্যা) [212707]",
+  "পদার্থবিজ্ঞান-II (তাপ, তাপগতিবিদ্যা ও বিকিরণ) [212709]",
+  "মৌলিক পরিসংখ্যান [213607]",
+  "অর্থনীতির মূলনীতি [212209]",
+  "বাংলাদেশের কৃষি অর্থনীতি [212211]"
+];
+
 function App() {
   const [user, setUser] = useState(null);
   const [file, setFile] = useState(null);
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [allNotes, setAllNotes] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -23,10 +41,16 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
+  // Search & Filter States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("");
+  const [selectedDateFilter, setSelectedDateFilter] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   // ImgBB API Key
   const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
-  // 👑 শুধুমাত্র আপনার ইমেইলকে Admin হিসেবে সেট করা হলো
+  // 👑 Admin Email
   const ADMIN_EMAIL = "spkroy2006@gmail.com";
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -111,7 +135,7 @@ function App() {
 
         setUploading(false);
         setFile(null);
-        setSubject("");
+        setSubject(BOOK_LIST[0]);
         setNoteDate("");
         alert("নোট/PDF সফলভাবে আপলোড হয়েছে!");
       } else {
@@ -124,13 +148,13 @@ function App() {
     }
   };
 
-  // 👑 Admin Control: ফাইল মুছে ফেলা
+  // 👑 Admin Control: Delete
   const handleDelete = async (noteId) => {
     if (!isAdmin) {
       alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
       return;
     }
-    const confirmDelete = window.confirm("অ্যাডমিন প্যানেল: আপনি কি এই ফাইলটি পুরোপুরি মুছে ফেলতে চান?");
+    const confirmDelete = window.confirm("অ্যাডমিন প্যানেল: আপনি কি এই ফাইলটি মুছে ফেলতে চান?");
     if (confirmDelete) {
       try {
         await deleteDoc(doc(db, "notes", noteId));
@@ -141,14 +165,14 @@ function App() {
     }
   };
 
-  // 👑 Admin Control: ফাইল ও বিষয়ের নাম পরিবর্তন করা
+  // 👑 Admin Control: Rename
   const handleRename = async (noteId, currentFileName, currentSubject) => {
     if (!isAdmin) {
       alert("শুধুমাত্র সাইট এডমিন এই কাজ করতে পারবে!");
       return;
     }
     const newFileName = prompt("নতুন ফাইলের নাম লিখুন:", currentFileName);
-    const newSubject = prompt("নতুন বিষয়ের নাম লিখুন:", currentSubject);
+    const newSubject = prompt("নতুন বিষয়ের নাম লিখুন (বুকলিস্ট অনুযায়ী):", currentSubject);
 
     if (newFileName && newSubject) {
       try {
@@ -157,7 +181,7 @@ function App() {
           fileName: newFileName,
           subject: newSubject
         });
-        alert("ফাইলের তথ্য সফলভাবে আপডেট করা হয়েছে!");
+        alert("ফাইলের তথ্য আপডেট করা হয়েছে!");
       } catch (error) {
         alert("আপডেট করতে ব্যর্থ হয়েছে!");
       }
@@ -168,6 +192,24 @@ function App() {
     navigator.clipboard.writeText(url);
     alert("নোটের লিংক কপি করা হয়েছে!");
   };
+
+  // Filter Book Suggestions for Search Bar
+  const suggestedBooks = BOOK_LIST.filter(book => 
+    book.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter Notes based on Selected Subject or Date
+  const filteredNotes = allNotes.filter(note => {
+    const matchesSubject = selectedSubjectFilter 
+      ? note.subject.toLowerCase() === selectedSubjectFilter.toLowerCase()
+      : true;
+
+    const matchesDate = selectedDateFilter 
+      ? note.date === selectedDateFilter
+      : true;
+
+    return matchesSubject && matchesDate;
+  });
 
   return (
     <div style={styles.container}>
@@ -187,7 +229,7 @@ function App() {
       {!user ? (
         <div style={styles.heroSection}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#1e293b", marginBottom: "10px" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৬ ব্যাচ! 📚</h2>
+            <h2 style={{ color: "#1e293b", marginBottom: "10px" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫ (২০২৬ ব্যাচ)! 📚</h2>
             <p style={{ color: "#64748b", lineHeight: "1.6" }}>
               এখানে ক্লাসের বিষয়ভিত্তিক নোট এবং ফাইল আপলোড ও শেয়ার করা যাবে। সাইটে প্রবেশ করতে লগইন করুন।
             </p>
@@ -262,18 +304,101 @@ function App() {
             <button onClick={handleLogout} style={styles.logoutBtn}>লগ-আউট</button>
           </div>
 
+          {/* 🔍 SEARCH BAR WITH AUTO-SUGGESTION & CALENDAR FILTER */}
+          <div style={styles.searchSection}>
+            <h3 style={{ color: "#0f172a", marginBottom: "12px", fontSize: "16px" }}>🔍 বিষয় ও তারিখ দিয়ে নোট খুঁজুন</h3>
+            
+            <div style={styles.filterGrid}>
+              {/* Auto suggestion Search Bar */}
+              <div style={{ position: "relative", flex: 2 }}>
+                <input 
+                  type="text" 
+                  placeholder="বইয়ের নাম বা কোড দিয়ে খুঁজুন..." 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  style={styles.searchInput}
+                />
+
+                {/* Suggestions Dropdown */}
+                {showSuggestions && searchQuery.trim() !== "" && (
+                  <div style={styles.suggestionBox}>
+                    {suggestedBooks.length === 0 ? (
+                      <div style={styles.suggestionItem}>কোনো বই পাওয়া যায়নি</div>
+                    ) : (
+                      suggestedBooks.map((book, idx) => (
+                        <div 
+                          key={idx} 
+                          style={styles.suggestionItem}
+                          onClick={() => {
+                            setSelectedSubjectFilter(book);
+                            setSearchQuery(book);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          📖 {book}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Calendar Filter */}
+              <div style={{ flex: 1, display: "flex", gap: "5px", alignItems: "center" }}>
+                <input 
+                  type="date" 
+                  value={selectedDateFilter}
+                  onChange={(e) => setSelectedDateFilter(e.target.value)}
+                  style={styles.dateFilterInput}
+                  title="তারিখ অনুযায়ী ফিল্টার করুন"
+                />
+              </div>
+            </div>
+
+            {/* Active Filters Display */}
+            {(selectedSubjectFilter || selectedDateFilter) && (
+              <div style={styles.activeFilterTag}>
+                <span>ফিল্টার: </span>
+                {selectedSubjectFilter && <span style={styles.filterBadge}>📖 {selectedSubjectFilter}</span>}
+                {selectedDateFilter && <span style={styles.filterBadge}>🗓️ {selectedDateFilter}</span>}
+                <button 
+                  onClick={() => {
+                    setSelectedSubjectFilter("");
+                    setSelectedDateFilter("");
+                    setSearchQuery("");
+                  }} 
+                  style={styles.resetBtn}
+                >
+                  ✖ ফিল্টার রিমুভ করুন
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 📌 UPLOAD SECTION */}
           <div style={styles.uploadCard}>
             <h3 style={{ color: "#0f172a", marginBottom: "15px" }}>📌 নতুন ক্লাসের PDF / নোট আপলোড করুন</h3>
             <form onSubmit={handleUpload} style={styles.uploadForm}>
               <div style={styles.inputGroup}>
-                <input 
-                  type="text" 
-                  placeholder="Subject / বিষয় (যেমন: Calculus)" 
-                  value={subject}
+                
+                {/* Booklist Dropdown */}
+                <select 
+                  value={subject} 
                   onChange={(e) => setSubject(e.target.value)}
-                  required
                   style={styles.input}
-                />
+                  required
+                >
+                  {BOOK_LIST.map((item, index) => (
+                    <option key={index} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+
                 <input 
                   type="date" 
                   value={noteDate}
@@ -304,13 +429,16 @@ function App() {
             </form>
           </div>
 
-          <h2 style={{ color: "#0f172a", marginBottom: "15px", fontSize: "20px" }}>📖 সব ক্লাসের নোটস ({allNotes.length})</h2>
+          {/* 📖 NOTES GRID */}
+          <h2 style={{ color: "#0f172a", marginBottom: "15px", fontSize: "20px" }}>
+            📖 ক্লাসের নোটস ({filteredNotes.length})
+          </h2>
           
           <div style={styles.notesGrid}>
-            {allNotes.length === 0 ? (
-              <p style={{ color: "#64748b" }}>এখনো কোনো নোট শেয়ার করা হয়নি।</p>
+            {filteredNotes.length === 0 ? (
+              <p style={{ color: "#64748b" }}>কোনো নোট পাওয়া যায়নি।</p>
             ) : (
-              allNotes.map((n) => (
+              filteredNotes.map((n) => (
                 <div key={n.id} style={styles.noteCard}>
                   <div>
                     <div style={styles.cardHeader}>
@@ -329,7 +457,7 @@ function App() {
                       🔗 শেয়ার
                     </button>
 
-                    {/* 👑 শুধুমাত্র অ্যাডমিনের জন্য (spkroy2006@gmail.com) Rename ও Delete বাটন */}
+                    {/* 👑 Admin Actions */}
                     {isAdmin && (
                       <>
                         <button 
@@ -356,6 +484,7 @@ function App() {
         </div>
       )}
 
+      {/* FOOTER */}
       <footer style={styles.footer}>
         <p>© 2026 Kurigram Govt. College (Math Dept) | Developed with ❤️ by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#2563eb", fontWeight: "bold"}}>Anondo</a></p>
         
@@ -412,13 +541,25 @@ const styles = {
   activeTab: { background: "#2563eb", color: "#fff" },
   googleBtn: { width: "100%", padding: "12px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   form: { display: "flex", flexDirection: "column", gap: "12px" },
-  input: { padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none" },
+  input: { padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", backgroundColor: "#fff" },
   submitBtn: { padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" },
   mainFeed: { maxWidth: "900px", margin: "30px auto", padding: "0 20px", width: "100%" },
   userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "15px 20px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" },
   badge: { backgroundColor: "#dbeafe", color: "#1e40af", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px" },
   adminBadge: { backgroundColor: "#fef3c7", color: "#d97706", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", marginLeft: "10px", fontWeight: "bold" },
   logoutBtn: { backgroundColor: "#ef4444", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" },
+  
+  // Search & Filter Styles
+  searchSection: { backgroundColor: "#fff", padding: "20px", borderRadius: "16px", marginBottom: "20px", border: "1px solid #e2e8f0" },
+  filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
+  searchInput: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" },
+  dateFilterInput: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" },
+  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 10, maxHeight: "200px", overflowY: "auto", marginTop: "4px" },
+  suggestionItem: { padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #f1f5f9", fontSize: "13px", color: "#1e293b" },
+  activeFilterTag: { marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "13px" },
+  filterBadge: { backgroundColor: "#e0f2fe", color: "#0369a1", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" },
+  resetBtn: { backgroundColor: "#fee2e2", color: "#ef4444", border: "none", padding: "4px 8px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+
   uploadCard: { backgroundColor: "#fff", padding: "25px", borderRadius: "16px", marginBottom: "30px", border: "1px solid #e2e8f0" },
   uploadForm: { display: "flex", flexDirection: "column" },
   inputGroup: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
