@@ -20,14 +20,16 @@ import {
   setDoc, 
   increment,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  getDocs,
+  where
 } from "firebase/firestore";
 
 // SVG Icons import from Lucide React
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -100,6 +102,10 @@ function App() {
   // App Data States
   const [allNotes, setAllNotes] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   
   // Public Profile View Modal State
@@ -159,7 +165,7 @@ function App() {
   // Dynamic Role Resolver
   const getUserRole = (uEmail, uUid) => {
     if (uEmail && ADMIN_EMAILS.includes(uEmail.toLowerCase())) return "Admin";
-    const foundUser = allUsers.find(u => u.uid === uUid || u.email === uEmail);
+    const foundUser = allUsers.find(u => u.uid === uUid || (uEmail && u.email === uEmail));
     return foundUser?.role || "Student";
   };
 
@@ -169,6 +175,39 @@ function App() {
   const currentUserRole = user ? getUserRole(user.email, user.uid) : "Student";
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
+
+  // Helper to Log Activity
+  const logActivity = async (action, details) => {
+    try {
+      const uName = myProfile.displayName || user?.displayName || user?.email?.split("@")[0] || "System";
+      await addDoc(collection(db, "activity_logs"), {
+        userUid: user?.uid || "system",
+        userName: uName,
+        userRole: currentUserRole,
+        action: action,
+        details: details,
+        createdAt: new Date()
+      });
+    } catch (e) {
+      console.error("Log Activity Error:", e);
+    }
+  };
+
+  // Helper to Push Notification
+  const pushNotification = async (targetUid, title, message, type = "info") => {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        targetUid: targetUid, // "all" or specific user UID
+        title: title,
+        message: message,
+        type: type,
+        createdAt: new Date(),
+        readBy: []
+      });
+    } catch (e) {
+      console.error("Push Notification Error:", e);
+    }
+  };
 
   const updateUserScore = async (uid, points) => {
     if (!uid) return;
@@ -226,10 +265,24 @@ function App() {
       }
     });
 
+    // Activity Logs Listener
+    const logsQuery = query(collection(db, "activity_logs"), orderBy("createdAt", "desc"));
+    const unsubscribeLogs = onSnapshot(logsQuery, (snapshot) => {
+      setActivityLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    // Notifications Listener
+    const notifQuery = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
+    const unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     return () => {
       unsubscribeAuth();
       unsubscribeNotes();
       unsubscribeUsers();
+      unsubscribeLogs();
+      unsubscribeNotifs();
     };
   }, []);
 
@@ -274,7 +327,7 @@ function App() {
 
   const handleLogout = () => signOut(auth);
 
-  // Admin Ban/Unban
+  // Admin Ban/Unban with Notification
   const handleToggleBanUser = async (targetUser) => {
     if (!isAdmin) return;
     if (getUserRole(targetUser.email, targetUser.uid) === "Admin") {
@@ -291,6 +344,20 @@ function App() {
       try {
         const userRef = doc(db, "users", targetUser.id);
         await updateDoc(userRef, { isBanned: nextBanState });
+
+        const statusText = nextBanState ? "ব্যান করা হয়েছে" : "আনব্যান করা হয়েছে";
+        await logActivity("Ban Status Changed", `${targetUser.displayName || targetUser.email}-কে ${statusText}`);
+
+        // Push Notification to the user
+        await pushNotification(
+          targetUser.uid, 
+          nextBanState ? "Account Suspended!" : "Account Re-activated!",
+          nextBanState 
+            ? "আপনার অ্যাকাউন্টটি অ্যাডমিন কর্তৃক ব্যান করা হয়েছে।" 
+            : "আপনার অ্যাকাউন্টটি সফলভাবে আনব্যান করা হয়েছে।",
+          nextBanState ? "error" : "success"
+        );
+
         alert(nextBanState ? "ইউজার ব্যান করা হয়েছে।" : "ইউজার আনব্যান করা হয়েছে।");
       } catch (err) {
         console.error(err);
@@ -299,7 +366,7 @@ function App() {
     }
   };
 
-  // Admin Remove User
+  // Admin Remove User Permanently (Deletes User + Uploads + Comments + Activity Logs)
   const handlePermanentlyRemoveUser = async (targetUser) => {
     if (!isAdmin) return;
     if (getUserRole(targetUser.email, targetUser.uid) === "Admin") {
@@ -307,10 +374,41 @@ function App() {
       return;
     }
 
-    if (window.confirm(`আপনি কি স্থায়ীভাবে ${targetUser.displayName || targetUser.email}-কে রিমুভ করতে চান?`)) {
+    if (window.confirm(`আপনি কি স্থায়ীভাবে ${targetUser.displayName || targetUser.email}-কে রিমুভ করতে চান? এর ফলে তার পোস্ট, কমেন্ট এবং সকল ডাটা মুছে যাবে!`)) {
       try {
+        const targetUid = targetUser.uid;
+
+        // 1. Delete user notes
+        const notesQuery = query(collection(db, "notes"), where("uploaderUid", "==", targetUid));
+        const userNotesSnap = await getDocs(notesQuery);
+        userNotesSnap.forEach(async (docSnap) => {
+          await deleteDoc(doc(db, "notes", docSnap.id));
+        });
+
+        // 2. Remove comments made by this user in remaining notes
+        allNotes.forEach(async (n) => {
+          const userComments = n.comments?.filter(c => c.userUid === targetUid) || [];
+          if (userComments.length > 0) {
+            const noteRef = doc(db, "notes", n.id);
+            for (let c of userComments) {
+              await updateDoc(noteRef, { comments: arrayRemove(c) });
+            }
+          }
+        });
+
+        // 3. Delete user activity logs
+        const logsQuery = query(collection(db, "activity_logs"), where("userUid", "==", targetUid));
+        const logsSnap = await getDocs(logsQuery);
+        logsSnap.forEach(async (docSnap) => {
+          await deleteDoc(doc(db, "activity_logs", docSnap.id));
+        });
+
+        // 4. Delete user document from Firestore
         await deleteDoc(doc(db, "users", targetUser.id));
-        alert("ইউজার স্থায়ীভাবে রিমুভ করা হয়েছে!");
+
+        await logActivity("User Permanently Removed", `${targetUser.displayName || targetUser.email}-কে স্থায়ীভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে।`);
+
+        alert("ইউজার ও তার তৈরি সকল ডাটা স্থায়ীভাবে রিমুভ করা হয়েছে!");
       } catch (err) {
         console.error(err);
         alert("ইউজার রিমুভ করতে সমস্যা হয়েছে!");
@@ -335,6 +433,16 @@ function App() {
       try {
         const userRef = doc(db, "users", targetUser.id);
         await updateDoc(userRef, { role: newRole });
+
+        await logActivity("Role Change", `${targetUser.displayName || targetUser.email}-এর রোল পরিবর্তন করা হয়েছে: ${newRole}`);
+        
+        await pushNotification(
+          targetUser.uid,
+          "Role Updated!",
+          `আপনার রোল আপডেট করা হয়েছে। বর্তমান রোল: ${newRole}`,
+          "info"
+        );
+
         alert(`রোল সফলভাবে আপডেট হয়েছে: ${newRole}`);
       } catch (error) {
         console.error("Role update failed:", error);
@@ -368,6 +476,8 @@ function App() {
         const resData = await res.json();
         if (resData.success) {
           finalPhotoUrl = resData.data.url;
+        } else {
+          throw new Error("Image Upload Failed");
         }
       }
 
@@ -385,6 +495,8 @@ function App() {
         hscGpa: myProfile.hscGpa,
         photoUrl: finalPhotoUrl
       });
+
+      await logActivity("Profile Updated", "ইউজার তার প্রোফাইল তথ্য আপডেট করেছেন।");
 
       setSavingProfile(false);
       alert("প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
@@ -446,6 +558,11 @@ function App() {
 
         await updateUserScore(user.uid, 100);
 
+        // Global Notification & Activity Log
+        const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
+        await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`);
+        await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
+
         setUploading(false);
         setFile(null);
         setSubject(BOOK_LIST[0]);
@@ -477,6 +594,9 @@ function App() {
         fileName: editFileName.trim(),
         pdfInfo: editPdfInfo.trim()
       });
+
+      await logActivity("Note Edited", `নোট এডিট করা হয়েছে: ${editFileName}`);
+
       alert("ফাইলের তথ্য সফলভাবে আপডেট করা হয়েছে!");
       setEditingNote(null);
     } catch (error) {
@@ -499,6 +619,18 @@ function App() {
           loves: arrayUnion(user.uid),
           cares: arrayRemove(user.uid) 
         });
+
+        const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+
+        // Send notification to post owner if not reacting to own post
+        if (!isOwnPost) {
+          await pushNotification(
+            note.uploaderUid,
+            "নতুন রিঅ্যাকশন!",
+            `${uName} আপনার পোস্টে Love রিঅ্যাক্ট দিয়েছে।`
+          );
+        }
+
         if (!isOwnPost && !note.lovedPointUsers?.includes(user.uid)) {
           await updateUserScore(user.uid, 3);
           await updateUserScore(note.uploaderUid, 5);
@@ -532,8 +664,19 @@ function App() {
     await updateDoc(noteRef, { comments: arrayUnion(newComment) });
 
     const isOwnPost = note.uploaderUid === user.uid;
-    const rewardedCommenters = note.commentedPointUsers || [];
 
+    // Send notification to post owner
+    if (!isOwnPost) {
+      await pushNotification(
+        note.uploaderUid,
+        "নতুন কমেন্ট!",
+        `${uName} আপনার পোস্টে কমেন্ট করেছে: "${text.trim().substring(0, 30)}..."`
+      );
+    }
+
+    await logActivity("New Comment", `${note.fileName}-এ কমেন্ট করা হয়েছে: ${text.trim().substring(0, 20)}...`);
+
+    const rewardedCommenters = note.commentedPointUsers || [];
     if (!isOwnPost && !rewardedCommenters.includes(user.uid)) {
       await updateUserScore(user.uid, 5);
       await updateUserScore(note.uploaderUid, 7);
@@ -549,6 +692,7 @@ function App() {
       try {
         const noteRef = doc(db, "notes", noteId);
         await updateDoc(noteRef, { comments: arrayRemove(commentObj) });
+        await logActivity("Comment Deleted", `একটি কমেন্ট মুছে ফেলা হয়েছে।`);
       } catch (error) {
         console.error("Comment delete error:", error);
       }
@@ -561,6 +705,7 @@ function App() {
     if (isAdmin) {
       if (window.confirm("অ্যাডমিন হিসেবে আপনি কি এই ফাইলটি ডিলিট করতে চান?")) {
         await deleteDoc(doc(db, "notes", note.id));
+        await logActivity("Note Deleted", `নোট ডিলিট করা হয়েছে: ${note.fileName}`);
       }
     } else if (currentUserRole === "Moderator") {
       if (window.confirm("মডারেটর হিসেবে আপনি এটি ডিলিট করার অনুরোধ পাঠাতে চান?")) {
@@ -571,6 +716,8 @@ function App() {
             isPendingDelete: true,
             deletedByModName: modName
           });
+
+          await logActivity("Delete Request", `মডারেটর ${modName} নোট ডিলিটের অনুরোধ করেছে: ${note.fileName}`);
           alert("ডিলিটের অনুরোধ অ্যাডমিনের কাছে পাঠানো হয়েছে!");
         } catch (error) {
           console.error(error);
@@ -583,6 +730,7 @@ function App() {
     if (!isAdmin) return;
     if (window.confirm("ডিলিট অনুরোধ অনুমোদন করতে চান?")) {
       await deleteDoc(doc(db, "notes", noteId));
+      await logActivity("Delete Request Approved", `অ্যাডমিন মডারেটরের ডিলিট অনুরোধ অনুমোদন করেছে।`);
     }
   };
 
@@ -642,6 +790,9 @@ function App() {
 
   const pendingDeleteNotes = visibleNotes.filter(n => n.isPendingDelete);
 
+  // User Notifications Filter
+  const userNotifications = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid);
+
   return (
     <div style={styles.container}>
       {/* HEADER */}
@@ -662,6 +813,46 @@ function App() {
             <button onClick={() => setCurrentView("profile")} style={{ ...styles.navBtn, ...(currentView === "profile" ? styles.activeNavBtn : {}) }}>
               <User size={16} /> My Profile
             </button>
+
+            {/* ACTIVITY LOGS BTN (For Admin, Moderator, Guest Admin) */}
+            {isModOrAdmin && (
+              <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
+                <Activity size={16} /> Logs
+              </button>
+            )}
+
+            {/* NOTIFICATION ICON */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
+                <Bell size={16} />
+                {userNotifications.length > 0 && <span style={styles.notifBadge}>{userNotifications.length}</span>}
+              </button>
+
+              {/* NOTIFICATION DROPDOWN */}
+              {showNotifDropdown && (
+                <div style={styles.notifDropdown}>
+                  <div style={styles.notifHeader}>
+                    <b>Notifications ({userNotifications.length})</b>
+                    <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
+                  </div>
+                  <div style={styles.notifList}>
+                    {userNotifications.length === 0 ? (
+                      <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
+                    ) : (
+                      userNotifications.map(n => (
+                        <div key={n.id} style={{
+                          ...styles.notifItem,
+                          borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8"
+                        }}>
+                          <b style={{ color: "#f8fafc", fontSize: "12px" }}>{n.title}</b>
+                          <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1022,7 +1213,11 @@ function App() {
                       type="text" 
                       placeholder="বইয়ের নাম বা বিষয় লিখে সার্চ করুন..." 
                       value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
+                      onChange={(e) => { 
+                        setSearchQuery(e.target.value); 
+                        setSelectedSubjectFilter(e.target.value);
+                        setShowSuggestions(true); 
+                      }}
                       onFocus={() => setShowSuggestions(true)}
                       style={styles.searchInput}
                     />
@@ -1112,6 +1307,39 @@ function App() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ACTIVITY LOGS MODAL */}
+      {showLogsModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: "550px" }}>
+            <button onClick={() => setShowLogsModal(false)} style={styles.closeModalBtn}><XCircle size={18} /></button>
+            <h3 style={{ color: "#38bdf8", marginBottom: "15px", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+              <Activity size={18} /> Activity Logs (সর্বশেষ কার্যক্রম)
+            </h3>
+
+            <div style={styles.activityLogList}>
+              {activityLogs.length === 0 ? (
+                <p style={{ color: "#64748b", textAlign: "center", fontSize: "13px" }}>কোনো অ্যাক্টিভিটি পাওয়া যায়নি</p>
+              ) : (
+                activityLogs.map(log => (
+                  <div key={log.id} style={styles.activityItem}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontWeight: "600", color: "#f8fafc", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        {log.userName} <RoleBadge role={log.userRole} />
+                      </span>
+                      <span style={{ fontSize: "10px", color: "#64748b" }}>
+                        {log.createdAt?.toDate ? log.createdAt.toDate().toLocaleString() : "Just now"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#38bdf8", fontWeight: "500" }}>{log.action}</div>
+                    <div style={{ fontSize: "12px", color: "#cbd5e1", marginTop: "2px" }}>{log.details}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1290,7 +1518,7 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
           {note.comments?.map((c) => {
             const commentUserRole = getUserRole(c.userEmail, c.userUid);
             return (
-              <div key={c.id} style={styles.singleComment}>
+              <div key={c.id || Math.random()} style={styles.singleComment}>
                 <div style={{ flex: 1 }}>
                   <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
                 </div>
@@ -1332,9 +1560,18 @@ const styles = {
   subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
   branding: { fontSize: "12px", color: "#64748b" },
   brandLink: { color: "#38bdf8", textDecoration: "none", fontWeight: "600" },
-  navTabs: { display: "flex", gap: "6px" },
+  navTabs: { display: "flex", gap: "6px", alignItems: "center" },
   navBtn: { padding: "7px 14px", border: "1px solid transparent", background: "transparent", color: "#94a3b8", borderRadius: "6px", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "0.2s" },
   activeNavBtn: { backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #334155" },
+
+  logsNavBtn: { padding: "7px 12px", backgroundColor: "rgba(139, 92, 246, 0.15)", color: "#c084fc", border: "1px solid rgba(139, 92, 246, 0.3)", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "5px", fontWeight: "500" },
+
+  notifIconBtn: { backgroundColor: "#1e293b", color: "#cbd5e1", border: "1px solid #334155", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", position: "relative", display: "flex", alignItems: "center" },
+  notifBadge: { position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#fff", borderRadius: "50%", padding: "1px 5px", fontSize: "10px", fontWeight: "bold" },
+  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "280px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
+  notifHeader: { padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "#f8fafc" },
+  notifList: { maxHeight: "250px", overflowY: "auto" },
+  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", backgroundColor: "#090d16" },
 
   bannedBanner: { backgroundColor: "rgba(220, 38, 38, 0.15)", borderBottom: "1px solid #dc2626", color: "#f87171", padding: "10px 20px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
 
@@ -1446,6 +1683,9 @@ const styles = {
   modalBadgeAdmin: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", border: "1px solid rgba(56, 189, 248, 0.3)" },
   modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
   profileDetailsList: { backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column", gap: "8px", color: "#cbd5e1" },
+
+  activityLogList: { maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" },
+  activityItem: { backgroundColor: "#090d16", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" },
 
   waCopyBtn: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" },
   copyToast: { position: "absolute", top: "-28px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", whiteSpace: "nowrap" },
