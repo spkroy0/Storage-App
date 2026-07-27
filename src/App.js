@@ -27,11 +27,11 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap
 } from "lucide-react";
 
 const BOOK_LIST = [
-  "Notice For Student ★ ",
+  "Notice",
   "বাংলাদেশের ইতিহাস: ভাষা, সংস্কৃতি ও পরিচয় [219901]",
   "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) [219903]",
   "মৌলিক গণিত [213701]",
@@ -133,6 +133,9 @@ function App() {
     dob: "",
     address: "",
     deptRoll: "",
+    hscCollege: "",
+    hscYear: "",
+    hscGpa: "",
     photoUrl: "",
     points: 0,
     role: "Student",
@@ -211,6 +214,9 @@ function App() {
             dob: foundMe.dob || "",
             address: foundMe.address || "",
             deptRoll: foundMe.deptRoll || "",
+            hscCollege: foundMe.hscCollege || "",
+            hscYear: foundMe.hscYear || "",
+            hscGpa: foundMe.hscGpa || "",
             photoUrl: foundMe.photoUrl || "",
             points: foundMe.points || 0,
             role: foundMe.role || "Student",
@@ -374,6 +380,9 @@ function App() {
         dob: myProfile.dob,
         address: myProfile.address,
         deptRoll: myProfile.deptRoll,
+        hscCollege: myProfile.hscCollege,
+        hscYear: myProfile.hscYear,
+        hscGpa: myProfile.hscGpa,
         photoUrl: finalPhotoUrl
       });
 
@@ -808,6 +817,22 @@ function App() {
                     <input type="date" value={myProfile.dob} onChange={(e) => setMyProfile({...myProfile, dob: e.target.value})} required style={styles.input} />
                   </div>
 
+                  {/* HSC OPTIONAL FIELDS */}
+                  <div>
+                    <label style={styles.label}>HSC College Name (Optional):</label>
+                    <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>HSC Passing Year (Optional):</label>
+                    <input type="text" placeholder="e.g. 2024" value={myProfile.hscYear} onChange={(e) => setMyProfile({...myProfile, hscYear: e.target.value})} style={styles.input} />
+                  </div>
+
+                  <div>
+                    <label style={styles.label}>HSC GPA (Optional):</label>
+                    <input type="text" placeholder="e.g. 5.00" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} style={styles.input} />
+                  </div>
+
                   <div style={{ gridColumn: "1 / -1" }}>
                     <label style={styles.label}>ঠিকানা / Residence:</label>
                     <input type="text" placeholder="Kurigram Sadar, Kurigram" value={myProfile.address} onChange={(e) => setMyProfile({...myProfile, address: e.target.value})} required style={styles.input} />
@@ -1160,6 +1185,15 @@ function App() {
               <p><b>Email:</b> {viewingProfile.email || "N/A"}</p>
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
+
+              {/* HSC OPTIONAL DISPLAY */}
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+                <GraduationCap size={14} /> HSC Information:
+              </p>
+              <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>Year:</b> {viewingProfile.hscYear || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>GPA:</b> {viewingProfile.hscGpa || "N/A"}</p>
+
               {viewingProfile.facebook && (
                 <p><b>Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "4px" }}>Profile Link <ExternalLink size={12} /></a></p>
               )}
@@ -1405,7 +1439,7 @@ const styles = {
   sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", cursor: "pointer" },
 
   modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
-  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", maxWidth: "360px", width: "100%", position: "relative", border: "1px solid #1e293b" },
+  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", maxWidth: "380px", width: "100%", position: "relative", border: "1px solid #1e293b" },
   closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" },
   modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px" },
   modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
