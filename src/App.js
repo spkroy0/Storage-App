@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 const BOOK_LIST = [
-  "Notice",
+  "Notice For Student ★",
   "বাংলাদেশের ইতিহাস: ভাষা, সংস্কৃতি ও পরিচয় [219901]",
   "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) [219903]",
   "মৌলিক গণিত [213701]",
