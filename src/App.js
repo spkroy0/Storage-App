@@ -681,7 +681,7 @@ function App() {
       {!user ? (
         <div style={styles.heroSection}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#38bdf8", marginBottom: "8px", fontWeight: "600" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৪-২৫</h2>
+            <h2 style={{ color: "#38bdf8", marginBottom: "8px", fontWeight: "600" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৬ ব্যাচ </h2>
             <p style={{ color: "#94a3b8", fontSize: "14px" }}>নোট দেখতে ও পয়েন্ট অর্জন করতে অ্যাকাউন্টে লগইন করুন।</p>
           </div>
 
@@ -706,7 +706,7 @@ function App() {
                   <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required style={styles.input} />
                 )}
                 <button type="submit" style={styles.submitBtn}>{isSignUp ? "Sign Up" : "Log In"}</button>
-                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}>
+               <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}>
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
                 </p>
               </form>
