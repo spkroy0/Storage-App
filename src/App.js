@@ -1549,7 +1549,7 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
               <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
@@ -1685,7 +1685,7 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
   );
 }
 
-// STYLES
+// STYLES OBJECT
 const styles = {
   container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc" },
   header: { backgroundColor: "#0f172a", padding: "14px 6%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "10px" },
@@ -1823,7 +1823,7 @@ const styles = {
   waCopyBtn: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" },
   copyToast: { position: "absolute", top: "-28px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", whiteSpace: "nowrap" },
 
-  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#0f172a", borderTop: "1px solid #1e293b", fontSize: "12px", color: "#64748b" }
+  footer: { textAlign: "center", padding: "20px", borderTop: "1px solid #1e293b", color: "#64748b", fontSize: "12px", marginTop: "40px" }
 };
 
 export default App;
