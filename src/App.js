@@ -6,7 +6,8 @@ import {
   signOut, 
   onAuthStateChanged,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail // <--- Password Reset Import
 } from "firebase/auth";
 import { 
   collection, 
@@ -29,7 +30,7 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -130,6 +131,10 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
+  // Password Reset States
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+
   // Profile Edit States
   const [myProfile, setMyProfile] = useState({
     displayName: "",
@@ -139,7 +144,7 @@ function App() {
     dob: "",
     address: "",
     deptRoll: "",
-    instituteName: "", // University/College Name
+    instituteName: "", 
     hscCollege: "",
     hscYear: "",
     hscGpa: "",
@@ -203,11 +208,11 @@ function App() {
     }
   };
 
-  // Helper to Push Notification with optional File Link
+  // Helper to Push Notification
   const pushNotification = async (targetUid, title, message, type = "info", fileUrl = null) => {
     try {
       await addDoc(collection(db, "notifications"), {
-        targetUid: targetUid, // "all" or specific user UID
+        targetUid: targetUid, 
         title: title,
         message: message,
         type: type,
@@ -277,13 +282,11 @@ function App() {
       }
     });
 
-    // Activity Logs Listener
     const logsQuery = query(collection(db, "activity_logs"), orderBy("createdAt", "desc"));
     const unsubscribeLogs = onSnapshot(logsQuery, (snapshot) => {
       setActivityLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Notifications Listener
     const notifQuery = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
     const unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -298,10 +301,8 @@ function App() {
     };
   }, []);
 
-  // Filter Users
   const visibleUsers = allUsers.filter(u => isAdmin ? true : !u.isBanned);
 
-  // Leaderboard
   const leaderboardEligibleUsers = visibleUsers.filter(u => !u.isBanned);
   const admins = leaderboardEligibleUsers.filter(u => getUserRole(u.email, u.uid) === "Admin");
   const nonAdmins = leaderboardEligibleUsers
@@ -337,9 +338,28 @@ function App() {
     }
   };
 
+  // Password Reset Handler
+  const handleForgotPassword = (e) => {
+    e.preventDefault();
+    setAuthError("");
+    setResetMessage("");
+
+    if (!email || !email.trim()) {
+      setAuthError("অনুগ্রহ করে আপনার ইমেইল এড্রেসটি লিখুন!");
+      return;
+    }
+
+    sendPasswordResetEmail(auth, email)
+      .then(() => {
+        setResetMessage("আপনার ইমেইলে রিসেট কোড/লিংক পাঠানো হয়েছে! ইমেইলের Inbox বা Spam ফোল্ডার চেক করুন।");
+      })
+      .catch((err) => {
+        setAuthError(err.message);
+      });
+  };
+
   const handleLogout = () => signOut(auth);
 
-  // Admin Ban/Unban with Notification
   const handleToggleBanUser = async (targetUser) => {
     if (!isAdmin) return;
     if (getUserRole(targetUser.email, targetUser.uid) === "Admin") {
@@ -360,7 +380,6 @@ function App() {
         const statusText = nextBanState ? "ব্যান করা হয়েছে" : "আনব্যান করা হয়েছে";
         await logActivity("Ban Status Changed", `${targetUser.displayName || targetUser.email}-কে ${statusText}`);
 
-        // Push Notification to the user
         await pushNotification(
           targetUser.uid, 
           nextBanState ? "Account Suspended!" : "Account Re-activated!",
@@ -378,7 +397,6 @@ function App() {
     }
   };
 
-  // Admin Remove User Permanently (Deletes User + Uploads + Comments + Activity Logs)
   const handlePermanentlyRemoveUser = async (targetUser) => {
     if (!isAdmin) return;
     if (getUserRole(targetUser.email, targetUser.uid) === "Admin") {
@@ -390,13 +408,11 @@ function App() {
       try {
         const targetUid = targetUser.uid;
 
-        // 1. Delete user notes (using Promise.all for safe async deletion)
         const notesQuery = query(collection(db, "notes"), where("uploaderUid", "==", targetUid));
         const userNotesSnap = await getDocs(notesQuery);
         const noteDeletePromises = userNotesSnap.docs.map(docSnap => deleteDoc(doc(db, "notes", docSnap.id)));
         await Promise.all(noteDeletePromises);
 
-        // 2. Remove comments made by this user in remaining notes
         const commentUpdatePromises = allNotes.map(async (n) => {
           const userComments = n.comments?.filter(c => c.userUid === targetUid) || [];
           if (userComments.length > 0) {
@@ -408,13 +424,11 @@ function App() {
         });
         await Promise.all(commentUpdatePromises);
 
-        // 3. Delete user activity logs
         const logsQuery = query(collection(db, "activity_logs"), where("userUid", "==", targetUid));
         const logsSnap = await getDocs(logsQuery);
         const logDeletePromises = logsSnap.docs.map(docSnap => deleteDoc(doc(db, "activity_logs", docSnap.id)));
         await Promise.all(logDeletePromises);
 
-        // 4. Delete user document from Firestore
         await deleteDoc(doc(db, "users", targetUser.id));
 
         await logActivity("User Permanently Removed", `${targetUser.displayName || targetUser.email}-কে স্থায়ীভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে।`);
@@ -570,7 +584,6 @@ function App() {
 
         await updateUserScore(user.uid, 100);
 
-        // Global Notification & Activity Log (Includes fileUrl to open directly on click)
         const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
         await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
         await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
@@ -634,7 +647,6 @@ function App() {
 
         const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
 
-        // Send notification to post owner if not reacting to own post
         if (!isOwnPost) {
           await pushNotification(
             note.uploaderUid,
@@ -679,7 +691,6 @@ function App() {
 
     const isOwnPost = note.uploaderUid === user.uid;
 
-    // Send notification to post owner
     if (!isOwnPost) {
       await pushNotification(
         note.uploaderUid,
@@ -782,7 +793,6 @@ function App() {
     }
   };
 
-  // Notification Click Handler to View/Open Attached File
   const handleNotificationClick = (notif) => {
     if (notif.fileUrl) {
       window.open(notif.fileUrl, "_blank");
@@ -816,7 +826,6 @@ function App() {
 
   const pendingDeleteNotes = visibleNotes.filter(n => n.isPendingDelete);
 
-  // User Notifications Filter
   const userNotifications = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid);
 
   return (
@@ -840,21 +849,18 @@ function App() {
               <User size={16} /> My Profile
             </button>
 
-            {/* ACTIVITY LOGS BTN (For Admin, Moderator) */}
             {isModOrAdmin && (
               <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
                 <Activity size={16} /> Logs
               </button>
             )}
 
-            {/* NOTIFICATION ICON */}
             <div style={{ position: "relative" }}>
               <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
                 <Bell size={16} />
                 {userNotifications.length > 0 && <span style={styles.notifBadge}>{userNotifications.length}</span>}
               </button>
 
-              {/* NOTIFICATION DROPDOWN WITH CLICKABLE FILES */}
               {showNotifDropdown && (
                 <div style={styles.notifDropdown}>
                   <div style={styles.notifHeader}>
@@ -897,7 +903,6 @@ function App() {
         </div>
       </header>
 
-      {/* BANNED ALERT */}
       {user && isCurrentUserBanned && (
         <div style={styles.bannedBanner}>
           <AlertTriangle size={20} color="#f87171" />
@@ -905,7 +910,6 @@ function App() {
         </div>
       )}
 
-      {/* INCOMPLETE PROFILE FLOATING NOTICE BANNER */}
       {user && isProfileIncomplete && (
         <div className="floating-notice">
           <p className="notice-text">
@@ -925,19 +929,25 @@ function App() {
           </div>
 
           <div style={styles.authCard}>
-            <h3 style={{ marginBottom: "20px", color: "#f8fafc", fontSize: "18px", fontWeight: "600" }}>প্রবেশ করুন</h3>
-            <div style={styles.tabContainer}>
-              <button onClick={() => setAuthMode("google")} style={{...styles.tab, ...(authMode === "google" ? styles.activeTab : {})}}>Google</button>
-              <button onClick={() => setAuthMode("email")} style={{...styles.tab, ...(authMode === "email" ? styles.activeTab : {})}}>Email</button>
-            </div>
+            <h3 style={{ marginBottom: "20px", color: "#f8fafc", fontSize: "18px", fontWeight: "600" }}>
+              {isResetMode ? "পাসওয়ার্ড রিসেট করুন" : "প্রবেশ করুন"}
+            </h3>
+            
+            {!isResetMode && (
+              <div style={styles.tabContainer}>
+                <button onClick={() => setAuthMode("google")} style={{...styles.tab, ...(authMode === "google" ? styles.activeTab : {})}}>Google</button>
+                <button onClick={() => setAuthMode("email")} style={{...styles.tab, ...(authMode === "email" ? styles.activeTab : {})}}>Email</button>
+              </div>
+            )}
 
             {authError && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "10px" }}>{authError}</p>}
+            {resetMessage && <p style={{ color: "#22c55e", fontSize: "13px", marginBottom: "10px" }}>{resetMessage}</p>}
 
-            {authMode === "google" && (
+            {!isResetMode && authMode === "google" && (
               <button onClick={handleGoogleLogin} style={styles.googleBtn}>Continue with Google</button>
             )}
 
-            {authMode === "email" && (
+            {!isResetMode && authMode === "email" && (
               <form onSubmit={handleEmailAuth} style={styles.form}>
                 <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required style={styles.input} />
                 <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required style={styles.input} />
@@ -945,8 +955,44 @@ function App() {
                   <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required style={styles.input} />
                 )}
                 <button type="submit" style={styles.submitBtn}>{isSignUp ? "Sign Up" : "Log In"}</button>
-                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}>
+                
+                {!isSignUp && (
+                  <p 
+                    onClick={() => { setIsResetMode(true); setAuthError(""); setResetMessage(""); }} 
+                    style={{ cursor: "pointer", color: "#f87171", marginTop: "8px", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                  >
+                    <KeyRound size={12} /> পাসওয়ার্ড ভুলে গেছেন? (Forgot Password?)
+                  </p>
+                )}
+
+                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "8px", fontSize: "13px" }}>
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
+                </p>
+              </form>
+            )}
+
+            {/* PASSWORD RESET FORM */}
+            {isResetMode && (
+              <form onSubmit={handleForgotPassword} style={styles.form}>
+                <p style={{ color: "#cbd5e1", fontSize: "12px", marginBottom: "5px" }}>
+                  আপনার ইমেইল এড্রেসটি দিন। আমরা আপনার ইমেইলে পাসওয়ার্ড রিসেট করার একটি কোড/লিংক পাঠাবো।
+                </p>
+                <input 
+                  type="email" 
+                  placeholder="আপনার রেজিস্টার্ড Email লিখুন" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required 
+                  style={styles.input} 
+                />
+                <button type="submit" style={styles.submitBtn}>
+                  রিসেট লিংক/কোড পাঠান
+                </button>
+                <p 
+                  onClick={() => { setIsResetMode(false); setAuthError(""); setResetMessage(""); }} 
+                  style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}
+                >
+                  ← লগইন পেজে ফিরে যান
                 </p>
               </form>
             )}
@@ -1031,7 +1077,6 @@ function App() {
                     <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required style={styles.input} />
                   </div>
 
-                  {/* NEW UNIVERSITY / COLLEGE NAME FIELD */}
                   <div>
                     <label style={styles.label}>University / College Name:</label>
                     <input 
@@ -1069,7 +1114,6 @@ function App() {
                     <input type="date" value={myProfile.dob} onChange={(e) => setMyProfile({...myProfile, dob: e.target.value})} required style={styles.input} />
                   </div>
 
-                  {/* HSC OPTIONAL FIELDS */}
                   <div>
                     <label style={styles.label}>HSC College Name (Optional):</label>
                     <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} style={styles.input} />
@@ -1102,7 +1146,6 @@ function App() {
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
-              {/* ADMIN PENDING DELETE REVIEW */}
               {isAdmin && pendingDeleteNotes.length > 0 && (
                 <div style={styles.adminReviewBox}>
                   <h3 style={{ color: "#f87171", margin: "0 0 12px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1127,7 +1170,6 @@ function App() {
                 </div>
               )}
 
-              {/* LEADERBOARD CARD */}
               <div style={styles.scoreBoardCard}>
                 <h3 style={{ color: "#f8fafc", margin: "0 0 15px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
                   <Award size={20} color="#38bdf8" /> লিডারবোর্ড (Top Members)
@@ -1191,7 +1233,6 @@ function App() {
                 </div>
               </div>
 
-              {/* REGISTERED USERS LIST */}
               <div style={styles.searchSection}>
                 <h3 style={{ color: "#f8fafc", marginBottom: "12px", fontSize: "15px", fontWeight: "600" }}>
                   সকল রেজিস্টার্ড মেম্বার
@@ -1263,7 +1304,6 @@ function App() {
           {/* HOME VIEW */}
           {currentView === "home" && (
             <>
-              {/* SEARCH & FILTER */}
               <div style={styles.searchSection}>
                 <h3 style={{ color: "#f8fafc", marginBottom: "12px", fontSize: "15px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Search size={16} color="#38bdf8" /> বিষয় ও তারিখ দিয়ে ফিল্টার করুন
@@ -1312,7 +1352,6 @@ function App() {
                 </div>
               </div>
 
-              {/* UPLOAD FORM */}
               <div style={styles.uploadCard}>
                 <h3 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "16px", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px" }}>
                   <UploadCloud size={20} color="#38bdf8" /> নতুন PDF / ছবি শেয়ার করুন (+100 Points)
@@ -1478,8 +1517,7 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              {/* HSC OPTIONAL DISPLAY */}
-              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
               <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
