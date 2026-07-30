@@ -290,6 +290,23 @@ function App() {
 
   const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
 
+  // Responsive Layout Mode State ("auto" by default, or "mobile" / "desktop" manual override if needed)
+  const [deviceMode, setDeviceMode] = useState("auto"); // "auto", "mobile", "desktop"
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
+
+  // Handle window resizing to dynamically adjust layout for auto mode
+  useEffect(() => {
+    const handleResize = () => {
+      if (deviceMode === "auto") {
+        setIsMobileView(window.innerWidth <= 768);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [deviceMode]);
+
+  const activeIsMobile = deviceMode === "mobile" ? true : deviceMode === "desktop" ? false : isMobileView;
+
   const [myProfile, setMyProfile] = useState({
     displayName: "",
     whatsapp: "",
@@ -1021,24 +1038,58 @@ function App() {
     );
   }
 
+  // Dynamic layout adjustments based on activeIsMobile
+  const containerStyle = {
+    ...styles.container,
+    maxWidth: activeIsMobile ? "100%" : "1200px",
+    margin: "0 auto",
+    padding: activeIsMobile ? "0 8px" : "0 16px",
+    boxShadow: activeIsMobile ? "none" : "0 0 20px rgba(0,0,0,0.5)"
+  };
+
   return (
-    <div style={styles.container}>
+    <div style={containerStyle}>
+      {/* DEVICE MODE TOGGLE BAR (Mobile & Computer Dynamic Control) */}
+      <div style={styles.deviceToggleBar}>
+        <span style={{ fontSize: "12px", color: "#94a3b8" }}>Device Layout Mode:</span>
+        <div style={{ display: "flex", gap: "5px" }}>
+          <button 
+            onClick={() => setDeviceMode("auto")} 
+            style={{ ...styles.modeBtn, ...(deviceMode === "auto" ? styles.activeModeBtn : {}) }}
+          >
+            Auto (Device Default)
+          </button>
+          <button 
+            onClick={() => setDeviceMode("mobile")} 
+            style={{ ...styles.modeBtn, ...(deviceMode === "mobile" ? styles.activeModeBtn : {}) }}
+          >
+            📱 Mobile Mode
+          </button>
+          <button 
+            onClick={() => setDeviceMode("desktop")} 
+            style={{ ...styles.modeBtn, ...(deviceMode === "desktop" ? styles.activeModeBtn : {}) }}
+          >
+            💻 Computer Mode
+          </button>
+        </div>
+      </div>
+
       {/* HEADER WITH MARQUEE */}
-      <header style={styles.header}>
+      <header style={{ ...styles.header, padding: activeIsMobile ? "10px 3%" : "10px 6%" }}>
         <div style={{ width: "100%", marginBottom: "8px" }}>
-          <marquee behavior="scroll" direction="left" scrollamount="5" style={{ color: "#facc15", fontWeight: "600", fontSize: "14px", backgroundColor: "#1e293b", padding: "4px 0", borderRadius: "4px" }}>
+          <marquee behavior="scroll" direction="left" scrollamount="5" style={{ color: "#facc15", fontWeight: "600", fontSize: activeIsMobile ? "12px" : "14px", backgroundColor: "#1e293b", padding: "4px 0", borderRadius: "4px" }}>
             website টির কাজ চলমান,সাময়িক ত্রুটি হতে পারে। যেকোনো সমস্যা admin কে whatsapp (✉ +8801522107909) only message করুন
           </marquee>
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "10px" }}>
           <div>
-            <h1 style={styles.logo} className="rgb-text-glow">Math Note HUB</h1>
+            <h1 style={{ ...styles.logo, fontSize: activeIsMobile ? "18px" : "20px" }} className="rgb-text-glow">Math Note HUB</h1>
             <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
           </div>
 
           {user && (
-            <div style={styles.navTabs}>
+            <div style={{ ...styles.navTabs, width: activeIsMobile ? "100%" : "auto", justifyContent: activeIsMobile ? "space-between" : "flex-start" }}>
               <button onClick={() => setCurrentView("home")} style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}>
                 <Home size={16} /> Home
               </button>
@@ -1062,7 +1113,7 @@ function App() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div style={styles.notifDropdown}>
+                  <div style={{ ...styles.notifDropdown, width: activeIsMobile ? "260px" : "310px", right: activeIsMobile ? "-40px" : 0 }}>
                     <div style={styles.notifHeader}>
                       <b>Notifications ({userNotifications.length})</b>
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -1141,9 +1192,9 @@ function App() {
       )}
 
       {!user ? (
-        <div style={styles.heroSection}>
+        <div style={{ ...styles.heroSection, maxWidth: activeIsMobile ? "100%" : "480px" }}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#38bdf8", marginBottom: "12px", fontWeight: "700", fontSize: "18px", lineHeight: "1.5" }}>
+            <h2 style={{ color: "#38bdf8", marginBottom: "12px", fontWeight: "700", fontSize: activeIsMobile ? "16px" : "18px", lineHeight: "1.5" }}>
               BSc Math-এর জটিল প্রমাণ আর থিওরেম নিয়ে চিন্তিত? এক ক্লিকেই সমাধান তোমার হাতের মুঠোয়। 
             </h2>
             <p style={{ color: "#cbd5e1", fontSize: "14px", lineHeight: "1.6", margin: "0 0 10px 0" }}>
@@ -1154,7 +1205,7 @@ function App() {
             </p>
           </div>
 
-          <div style={styles.authCard}>
+          <div style={{ ...styles.authCard, padding: activeIsMobile ? "18px" : "28px" }}>
             <h3 style={{ marginBottom: "20px", color: "#f8fafc", fontSize: "18px", fontWeight: "600" }}>
               {isResetMode ? "পাসওয়ার্ড রিসেট করুন" : "প্রবেশ করুন"}
             </h3>
@@ -1224,7 +1275,7 @@ function App() {
           </div>
         </div>
       ) : (
-        <div style={styles.mainFeed}>
+        <div style={{ ...styles.mainFeed, maxWidth: activeIsMobile ? "100%" : "860px" }}>
           
           <div style={styles.userBar}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1287,7 +1338,7 @@ function App() {
                   </div>
                 </div>
 
-                <div style={styles.inputGrid}>
+                <div style={{ ...styles.inputGrid, gridTemplateColumns: activeIsMobile ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))" }}>
                   <div>
                     <label style={styles.label}>নাম:</label>
                     <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required style={styles.input} />
@@ -1345,7 +1396,7 @@ function App() {
                     <input type="text" placeholder="e.g. GPA / Student" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} style={styles.input} />
                   </div>
 
-                  <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ gridColumn: activeIsMobile ? "span 1" : "1 / -1" }}>
                     <label style={styles.label}>ঠিকানা / Residence:</label>
                     <input type="text" placeholder="Kurigram Sadar, Kurigram" value={myProfile.address} onChange={(e) => setMyProfile({...myProfile, address: e.target.value})} required style={styles.input} />
                   </div>
@@ -1489,7 +1540,7 @@ function App() {
                 {selectedDashboardUid ? "নির্বাচিত সদস্যের ফাইলসমূহ" : "সকল সংগৃহীত ফাইলসমূহ"} ({dashboardFilteredNotes.length})
               </h3>
 
-              <div style={styles.notesGrid}>
+              <div style={{ ...styles.notesGrid, gridTemplateColumns: activeIsMobile ? "1fr" : "repeat(auto-fill, minmax(270px, 1fr))" }}>
                 {dashboardFilteredNotes.map((n) => (
                   <NoteCardItem 
                     key={n.id} 
@@ -1522,7 +1573,7 @@ function App() {
                 <h3 style={{ color: "#f8fafc", marginBottom: "12px", fontSize: "15px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Search size={16} color="#38bdf8" /> বিষয় ও তারিখ দিয়ে ফিল্টার করুন
                 </h3>
-                <div style={styles.filterGrid}>
+                <div style={{ ...styles.filterGrid, flexDirection: activeIsMobile ? "column" : "row" }}>
                   <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
                     <input 
                       type="text" 
@@ -1571,7 +1622,7 @@ function App() {
                   <UploadCloud size={20} color="#38bdf8" /> নতুন PDF / ছবি শেয়ার করুন (+100 Points)
                 </h3>
                 <form onSubmit={handleUpload} style={styles.uploadForm}>
-                  <div style={styles.inputGroup}>
+                  <div style={{ ...styles.inputGroup, flexDirection: activeIsMobile ? "column" : "row" }}>
                     <select value={subject} onChange={(e) => setSubject(e.target.value)} style={styles.input} required>
                       {BOOK_LIST.map((item, index) => (
                         <option key={index} value={item} style={{ backgroundColor: "#0f172a", color: "#fff" }}>{item}</option>
@@ -1595,7 +1646,7 @@ function App() {
                 সংগৃহীত নোটস ({filteredNotes.length})
               </h2>
               
-              <div style={styles.notesGrid}>
+              <div style={{ ...styles.notesGrid, gridTemplateColumns: activeIsMobile ? "1fr" : "repeat(auto-fill, minmax(270px, 1fr))" }}>
                 {filteredNotes.map((n) => (
                   <NoteCardItem 
                     key={n.id} 
@@ -1626,7 +1677,7 @@ function App() {
 
       {showLogsModal && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: "550px" }}>
+          <div style={{ ...styles.modalCard, maxWidth: activeIsMobile ? "92%" : "550px" }}>
             <button onClick={() => setShowLogsModal(false)} style={styles.closeModalBtn}><XCircle size={18} /></button>
             <h3 style={{ color: "#38bdf8", marginBottom: "15px", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
               <Activity size={18} /> Activity Logs (সর্বশেষ কার্যক্রম)
@@ -1658,7 +1709,7 @@ function App() {
 
       {editingNote && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
+          <div style={{ ...styles.modalCard, maxWidth: activeIsMobile ? "92%" : "380px" }}>
             <button onClick={() => setEditingNote(null)} style={styles.closeModalBtn}><XCircle size={18} /></button>
             <h3 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "16px" }}>ফাইলের নাম ও তথ্য পরিবর্তন</h3>
             <form onSubmit={handleSaveNoteEdit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -1691,7 +1742,7 @@ function App() {
 
       {viewingProfile && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
+          <div style={{ ...styles.modalCard, maxWidth: activeIsMobile ? "92%" : "380px" }}>
             <button onClick={() => setViewingProfile(null)} style={styles.closeModalBtn}><XCircle size={18} /></button>
             <div style={{ textAlign: "center", marginBottom: "15px" }}>
               <img 
@@ -1752,9 +1803,13 @@ function App() {
 
 // STYLES OBJECT
 const styles = {
-  container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc" },
-  header: { backgroundColor: "#0f172a", padding: "10px 6%", display: "flex", flexDirection: "column", borderBottom: "1px solid #1e293b" },
-  logo: { fontSize: "20px", color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
+  container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc", transition: "all 0.3s ease" },
+  deviceToggleBar: { backgroundColor: "#0f172a", padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "8px" },
+  modeBtn: { backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", padding: "4px 8px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", fontWeight: "500" },
+  activeModeBtn: { backgroundColor: "#0284c7", color: "#fff", borderColor: "#0284c7" },
+
+  header: { backgroundColor: "#0f172a", display: "flex", flexDirection: "column", borderBottom: "1px solid #1e293b" },
+  logo: { color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
   subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
   branding: { fontSize: "12px", color: "#64748b" },
   brandLink: { color: "#38bdf8", textDecoration: "none", fontWeight: "600" },
@@ -1766,7 +1821,7 @@ const styles = {
 
   notifIconBtn: { backgroundColor: "#1e293b", color: "#cbd5e1", border: "1px solid #334155", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", position: "relative", display: "flex", alignItems: "center" },
   notifBadge: { position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#fff", borderRadius: "50%", padding: "1px 5px", fontSize: "10px", fontWeight: "bold" },
-  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "310px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
+  notifDropdown: { position: "absolute", top: "110%", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
   notifHeader: { padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "#f8fafc" },
   notifList: { maxHeight: "250px", overflowY: "auto" },
   notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", transition: "background 0.2s" },
@@ -1787,9 +1842,9 @@ const styles = {
     animation: "rgbGlow 1.5s infinite"
   },
 
-  heroSection: { maxWidth: "480px", margin: "40px auto", padding: "0 20px" },
+  heroSection: { margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
-  authCard: { backgroundColor: "#0f172a", padding: "28px", borderRadius: "12px", border: "1px solid #1e293b", textAlign: "center" },
+  authCard: { backgroundColor: "#0f172a", borderRadius: "12px", border: "1px solid #1e293b", textAlign: "center" },
   tabContainer: { display: "flex", justifyContent: "center", marginBottom: "20px", gap: "8px" },
   tab: { padding: "8px 20px", border: "none", background: "#1e293b", color: "#94a3b8", borderRadius: "6px", cursor: "pointer", fontSize: "13px" },
   activeTab: { background: "#0284c7", color: "#fff", fontWeight: "500" },
@@ -1799,8 +1854,8 @@ const styles = {
   label: { display: "block", fontSize: "12px", color: "#94a3b8", marginBottom: "4px" },
   submitBtn: { padding: "11px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
   
-  mainFeed: { maxWidth: "860px", margin: "25px auto", padding: "0 16px" },
-  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "12px 18px", borderRadius: "10px", border: "1px solid #1e293b", marginBottom: "16px" },
+  mainFeed: { margin: "25px auto", padding: "0 16px" },
+  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "12px 18px", borderRadius: "10px", border: "1px solid #1e293b", marginBottom: "16px", flexWrap: "wrap", gap: "10px" },
 
   studentBadge: { backgroundColor: "#1e293b", color: "#94a3b8", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "500" },
   adminBadge: { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(239, 68, 68, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
@@ -1816,7 +1871,7 @@ const styles = {
   scoreBoxDivider: { width: "1px", height: "30px", backgroundColor: "#1e293b" },
 
   profileForm: { display: "flex", flexDirection: "column", gap: "15px" },
-  inputGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" },
+  inputGrid: { display: "grid", gap: "12px" },
   saveProfileBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px", marginTop: "10px" },
 
   adminReviewBox: { backgroundColor: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.3)", padding: "16px", borderRadius: "10px", marginBottom: "20px" },
@@ -1838,7 +1893,7 @@ const styles = {
 
   dashboardSection: { marginBottom: "30px" },
   searchSection: { backgroundColor: "#0f172a", padding: "18px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #1e293b" },
-  filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
+  filterGrid: { display: "flex", gap: "10px" },
   searchInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   dateFilterInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", zIndex: 10, maxHeight: "150px", overflowY: "auto" },
@@ -1846,10 +1901,10 @@ const styles = {
 
   uploadCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", marginBottom: "25px", border: "1px solid #1e293b" },
   uploadForm: { display: "flex", flexDirection: "column" },
-  inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
+  inputGroup: { display: "flex", gap: "10px" },
   uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
   
-  notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "16px" },
+  notesGrid: { display: "grid", gap: "16px" },
   noteCard: { backgroundColor: "#0f172a", padding: "16px", borderRadius: "10px", border: "1px solid #1e293b", display: "flex", flexDirection: "column", justifyContent: "space-between" },
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
   subjectTag: { color: "#38bdf8", fontSize: "12px", fontWeight: "500" },
@@ -1859,7 +1914,7 @@ const styles = {
   pendingAlertTag: { color: "#f87171", fontSize: "11px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px" },
   uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" },
   
-  cardActions: { display: "flex", gap: "6px", marginBottom: "12px" },
+  cardActions: { display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" },
   viewBtn: { flex: "1", backgroundColor: "#1e293b", color: "#38bdf8", textDecoration: "none", textAlign: "center", padding: "6px", borderRadius: "6px", fontSize: "12px", border: "1px solid #334155" },
   downloadBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
   copyBtn: { backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
@@ -1875,7 +1930,7 @@ const styles = {
   sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", cursor: "pointer" },
 
   modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
-  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", maxWidth: "380px", width: "100%", position: "relative", border: "1px solid #1e293b" },
+  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", width: "100%", position: "relative", border: "1px solid #1e293b" },
   closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" },
   modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px" },
   modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
