@@ -41,6 +41,7 @@ const BOOK_LIST = [
   "ম্যাথ ল্যাব-প্র্যাকটিক্যাল (Math Lab-Practical I: Mathematica) – কোড: ২১৩৭০৬",
   "ফিজিক্স-১ (Physics I - Mechanics, Properties of Matter, Waves and Optics) – কোড: ২১২৭০৭",
   "ফিজিক্স-২ (Physics II - Heat, Thermodynamics, and Radiation) – কোড: ২১২৭০৯",
+  "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) ",
   "Chemistry-I (212807)",
   "ফান্ডামেন্টাল অব স্ট্যাটিস্টিক্স -1 (Fundamentals of Statistics) – কোড: ২১৩৬০৭",
   "স্ট্যাটিস্টিক্স ল্যাব (Lab-1: Fundamentals of Statistics) – কোড: ২১৩৬১০",
