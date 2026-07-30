@@ -34,21 +34,45 @@ import {
 } from "lucide-react";
 
 const BOOK_LIST = [
-  "Notice For Student ★",
-  "বাংলাদেশের ইতিহাস: ভাষা, সংস্কৃতি ও পরিচয় [219901]",
-  "তথ্য ও যোগাযোগ প্রযুক্তি (ICT) [219903]",
-  "মৌলিক গণিত [213701]",
-  "ক্যালকুলাস-I [213703]",
-  "যোগাশ্রয়ী বীজগণিত ও বৈশ্লেষিক জ্যামিতি [213705]",
-  "গণিত (Lab-Practical) [213706]",
-  "রসায়ন (ব্যবহারিক-I) [212810]",
-  "পরিসংখ্যান (Lab) [213610]",
-  "রসায়ন-I [212807]",
-  "পদার্থবিজ্ঞান-I (বলবিদ্যা, পদার্থের ধর্ম, তরঙ্গ ও আলোকবিদ্যা) [212707]",
-  "পদার্থবিজ্ঞান-II (তাপ, তাপগতিবিদ্যা ও বিকিরণ) [212709]",
-  "মৌলিক পরিসংখ্যান [213607]",
-  "অর্থনীতির মূলনীতি [212209]",
-  "বাংলাদেশের কৃষি অর্থনীতি [212211]"
+  "Notice for Students ★",
+  "ফান্ডামেন্টাল অব ম্যাথমেটিক্স (Fundamentals of Mathematics) – কোড: ২১৩৭০১",
+  "ক্যালকুলাস-১ (Calculus-I) – কোড: ২১৩৭০৩",
+  "লিনিয়ার অ্যালজেব্রা অ্যান্ড অ্যানালিটিক জিওমেট্রি (Linear Algebra and Analytic Geometry) – কোড: ২১৩৭০৫",
+  "ম্যাথ ল্যাব-প্র্যাকটিক্যাল (Math Lab-Practical I: Mathematica) – কোড: ২১৩৭০৬",
+  "ফিজিক্স-১ (Physics I - Mechanics, Properties of Matter, Waves and Optics) – কোড: ২১২৭০৭",
+  "ফিজিক্স-২ (Physics II - Heat, Thermodynamics, and Radiation) – কোড: ২১২৭০৯",
+  "Chemistry-I (212807)",
+  "ফান্ডামেন্টাল অব স্ট্যাটিস্টিক্স -1 (Fundamentals of Statistics) – কোড: ২১৩৬০৭",
+  "স্ট্যাটিস্টিক্স ল্যাব (Lab-1: Fundamentals of Statistics) – কোড: ২১৩৬১০",
+  "প্রিন্সিপালস অব ইকোনমিক্স (Principles of Economics) – কোড: ২১২২০৯",
+  "বাংলাদেশের অভ্যুদয়ের ইতিহাস (History of the Emergence of Independent Bangladesh) – কোড: ২১২১১১",
+  "ক্যালকুলাস-২ (Calculus-II) – কোড: ২২৩৭০১",
+  "অর্ডিনারি ডিফারেনশিয়াল ইকুয়েশনস (Ordinary Differential Equations) – কোড: ২২৩৭০৩",
+  "কম্পিউটার প্রোগ্রামিং (ফোরট্রান - Fortran) – কোড: ২২৩৭০৫",
+  "ম্যাথ ল্যাব (Math Lab Practical) – কোড: ২২৩৭০৬",
+  "ফিজিক্স -3",
+  "কেমিস্ট্রি -2",
+  "স্ট্যাটিস্টিক্স- 2",
+  "ইংরেজি (আবশ্যিক - অবৈতনিক/নন-ক্রেডিট)",
+  "অ্যাবস্ট্রাক্ট অ্যালজেব্রা (Abstract Algebra) – কোড: ২৩৩৭০১",
+  "রিয়েল অ্যানালিসিস (Real Analysis) – কোড: ২৩৩৭০৩",
+  "নিউমেরিক্যাল অ্যানালিসিস (Numerical Analysis) – কোড: ২৩৩৭০৫",
+  "কমপ্লেক্স অ্যানালিসিস (Complex Analysis) – কোড: ২৩৩৭০৭",
+  "ডিফারেনশিয়াল জিওমেট্রি (Differential Geometry) – কোড: ২৩৩৭০৯",
+  "মেকানিক্স (Mechanics) – কোড: ২৩৩৭১১",
+  "লিনিয়ার প্রোগ্রামিং (Linear Programming) – কোড: ২৩৩৭১৩",
+  "ভাইভা-ভেসিলি / মৌখিক পরীক্ষা (Viva-Voce) – কোড: ২৩৩৭২০",
+  "থিওরি অব নাম্বারস (Theory of Numbers) – কোড: ২৪৩৭০১",
+  "টপোলজি অ্যান্ড ফাংশনাল অ্যানালিসিস (Topology & Functional Analysis) – কোড: ২৪৩৭০৩",
+  "মেথডস অব অ্যাপ্লায়েড ম্যাথমেটিক্স (Methods of Applied Mathematics) – কোড: ২৪৩৭০৫",
+  "টেন্সর অ্যানালিসিস (Tensor Analysis) – কোড: ২৪৩৭০৭",
+  "পারশিয়াল ডিফারেনশিয়াল ইকুয়েশনস (Partial Differential Equations) – কোড: ২৪৩৭০৯",
+  "হাইড্রোডাইনামিক্স (Hydrodynamics) – কোড: ২৪৩৭১১",
+  "ভাইভা-ভেসিলি (Viva-Voce) – কোড: ২৪৩৭২০",
+  "ডিসক্রিট ম্যাথমেটিক্স (Discrete Mathematics) – কোড: ২৪৩৭১৩",
+  "অ্যাস্ট্রোনমি (Astronomy) – কোড: ২৪৩৭১৫",
+  "ম্যাথমেটিক্যাল মডেলিং ইন বায়োলজি (Mathematical Modeling in Biology) – কোড: ২৪৩৭১৭",
+  "ম্যাথ ল্যাব প্র্যাকটিক্যাল (Math Lab - Practical) – কোড: ২৪৩৭১৮"
 ];
 
 // Permanent Admin Email List
@@ -1525,7 +1549,7 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
               <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
