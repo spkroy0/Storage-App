@@ -30,7 +30,7 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -818,13 +818,43 @@ function App() {
     }
   };
 
-  const handleNotificationClick = (notif) => {
+  // রিয়েল নোটিফিকেশন ক্লিক হ্যান্ডলার ও মার্ক এজ রিড লজিক
+  const handleNotificationClick = async (notif) => {
+    try {
+      if (user && (!notif.readBy || !notif.readBy.includes(user.uid))) {
+        const notifRef = doc(db, "notifications", notif.id);
+        await updateDoc(notifRef, {
+          readBy: arrayUnion(user.uid)
+        });
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+
     if (notif.fileUrl) {
       window.open(notif.fileUrl, "_blank");
     } else {
       setCurrentView("home");
     }
     setShowNotifDropdown(false);
+  };
+
+  // রিয়েল "Mark All as Read" ফাংশন
+  const handleMarkAllAsRead = async () => {
+    if (!user) return;
+    try {
+      const unreadNotifs = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid).filter(n => !n.readBy || !n.readBy.includes(user.uid));
+      
+      for (const notif of unreadNotifs) {
+        const notifRef = doc(db, "notifications", notif.id);
+        await updateDoc(notifRef, {
+          readBy: arrayUnion(user.uid)
+        });
+      }
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      alert("সকল নোটিফিকেশন রিড করতে সমস্যা হয়েছে!");
+    }
   };
 
   const filterNotesNotFromBanned = (notesList) => {
@@ -852,6 +882,7 @@ function App() {
   const pendingDeleteNotes = visibleNotes.filter(n => n.isPendingDelete);
 
   const userNotifications = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid);
+  const unreadNotifCount = userNotifications.filter(n => !n.readBy || !n.readBy.includes(user?.uid)).length;
 
   if (loading) {
     return (
@@ -891,38 +922,49 @@ function App() {
             <div style={{ position: "relative" }}>
               <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
                 <Bell size={16} />
-                {userNotifications.length > 0 && <span style={styles.notifBadge}>{userNotifications.length}</span>}
+                {unreadNotifCount > 0 && <span style={styles.notifBadge}>{unreadNotifCount}</span>}
               </button>
 
               {showNotifDropdown && (
                 <div style={styles.notifDropdown}>
                   <div style={styles.notifHeader}>
                     <b>Notifications ({userNotifications.length})</b>
-                    <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      {unreadNotifCount > 0 && (
+                        <span onClick={handleMarkAllAsRead} style={{ cursor: "pointer", fontSize: "11px", color: "#38bdf8", display: "flex", alignItems: "center", gap: "2px" }} title="Mark all as read">
+                          <CheckCheck size={12} /> Mark all read
+                        </span>
+                      )}
+                      <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
+                    </div>
                   </div>
                   <div style={styles.notifList}>
                     {userNotifications.length === 0 ? (
                       <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
                     ) : (
-                      userNotifications.map(n => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => handleNotificationClick(n)}
-                          className="notification-item"
-                          style={{
-                            ...styles.notifItem,
-                            borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
-                            cursor: "pointer"
-                          }}
-                          title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
-                        >
-                          <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            {n.title}
-                            {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
-                          </b>
-                          <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
-                        </div>
-                      ))
+                      userNotifications.map(n => {
+                        const isUnread = !n.readBy || !n.readBy.includes(user?.uid);
+                        return (
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleNotificationClick(n)}
+                            className="notification-item"
+                            style={{
+                              ...styles.notifItem,
+                              backgroundColor: isUnread ? "#132238" : "#090d16",
+                              borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
+                              cursor: "pointer"
+                            }}
+                            title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
+                          >
+                            <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              {n.title}
+                              {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
+                            </b>
+                            <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1694,10 +1736,10 @@ const styles = {
 
   notifIconBtn: { backgroundColor: "#1e293b", color: "#cbd5e1", border: "1px solid #334155", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", position: "relative", display: "flex", alignItems: "center" },
   notifBadge: { position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#fff", borderRadius: "50%", padding: "1px 5px", fontSize: "10px", fontWeight: "bold" },
-  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "290px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
+  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "310px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
   notifHeader: { padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "#f8fafc" },
   notifList: { maxHeight: "250px", overflowY: "auto" },
-  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", backgroundColor: "#090d16", transition: "background 0.2s" },
+  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", transition: "background 0.2s" },
 
   bannedBanner: { backgroundColor: "rgba(220, 38, 38, 0.15)", borderBottom: "1px solid #dc2626", color: "#f87171", padding: "10px 20px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
 
