@@ -67,11 +67,11 @@ const BOOK_LIST = [
   "মেথডস অব অ্যাপ্লায়েড ম্যাথমেটিক্স (Methods of Applied Mathematics) – কোড: ২৪৩৭০৫",
   "টেন্সর অ্যানালিসিস (Tensor Analysis) – কোড: ২৪৩৭০৭",
   "পারশিয়াল ডিফারেনশিয়াল ইকুয়েশনস (Partial Differential Equations) – কোড: ২৪৩৭০৯",
-  "হাইড্রোডাইনামিক্স (Hydrodynamics) – কোড: ২৪৩৭১১",
+  "হাইড্রোডাইনামিক্স (Hydrodynamics) – কোড: ২৪3৭১১",
   "ভাইভা-ভেসিলি (Viva-Voce) – কোড: ২৪৩৭২০",
-  "ডিসক্রিট ম্যাথমেটিক্স (Discrete Mathematics) – কোড: ২৪৩৭১৩",
-  "অ্যাস্ট্রোনমি (Astronomy) – কোড: ২৪৩৭১৫",
-  "ম্যাথমেটিক্যাল মডেলিং ইন বায়োলজি (Mathematical Modeling in Biology) – কোড: ২৪৩৭১৭",
+  "ডিসক্রিট ম্যাথমেটিক্স (Discrete Mathematics) – কোড: ২৪3৭১৩",
+  "অ্যাস্ট্রোনমি (Astronomy) – কোড: ২৪3৭১৫",
+  "ম্যাথমেটিক্যাল মডেলিং ইন বায়োলজি (Mathematical Modeling in Biology) – কোড: ২৪3৭১৭",
   "ম্যাথ ল্যাব প্র্যাকটিক্যাল (Math Lab - Practical) – কোড: ২৪৩৭১৮"
 ];
 
@@ -326,7 +326,10 @@ function App() {
   const [selectedDashboardUid, setSelectedDashboardUid] = useState(null);
   const [commentText, setCommentText] = useState({});
 
-  const FILE_HOST_API_KEY = process.env.REACT_APP_IMGBB_API_KEY || "5bbd692b6ba3cbb1ce420857c904c34b"; 
+  // Supports both Vite (import.meta.env) and CRA (process.env) for Vercel deployment safety
+  const FILE_HOST_API_KEY = (typeof process !== "undefined" && process.env?.REACT_APP_IMGBB_API_KEY) || 
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_IMGBB_API_KEY) || 
+    "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
   // Dynamic Role Resolver
   const getUserRole = (uEmail, uUid) => {
@@ -1135,7 +1138,7 @@ function App() {
       {user && isCurrentUserBanned && (
         <div style={styles.bannedBanner}>
           <AlertTriangle size={20} color="#f87171" />
-          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল তথ্য দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেন না।</span>
+          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেন না।</span>
         </div>
       )}
 
