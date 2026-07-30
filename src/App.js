@@ -298,9 +298,9 @@ function App() {
     address: "",
     deptRoll: "",
     instituteName: "", 
-    hscCollege: "Kurigram Govt. College",
-    hscYear: "2025",
-    hscGpa: "Permanent",
+    hscCollege: "",
+    hscYear: "",
+    hscGpa: "",
     photoUrl: "",
     points: 0,
     role: "Student",
@@ -426,9 +426,9 @@ function App() {
             address: foundMe.address || "",
             deptRoll: foundMe.deptRoll || "",
             instituteName: foundMe.instituteName || "",
-            hscCollege: "Kurigram Govt. College",
-            hscYear: "2025",
-            hscGpa: "Permanent",
+            hscCollege: foundMe.hscCollege || "",
+            hscYear: foundMe.hscYear || "",
+            hscGpa: foundMe.hscGpa || "",
             photoUrl: foundMe.photoUrl || "",
             points: foundMe.points || 0,
             role: foundMe.role || "Student",
@@ -671,9 +671,9 @@ function App() {
         address: myProfile.address,
         deptRoll: myProfile.deptRoll,
         instituteName: myProfile.instituteName,
-        hscCollege: "Kurigram Govt. College",
-        hscYear: "2025",
-        hscGpa: "Permanent",
+        hscCollege: myProfile.hscCollege,
+        hscYear: myProfile.hscYear,
+        hscGpa: myProfile.hscGpa,
         photoUrl: finalPhotoUrl
       });
 
@@ -1330,18 +1330,18 @@ function App() {
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC College Name (Permanent):</label>
-                    <input type="text" value="Kurigram Govt. College" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
+                    <label style={styles.label}>College Name:</label>
+                    <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC Passing Year (Permanent):</label>
-                    <input type="text" value="2025" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
+                    <label style={styles.label}>Passing Year:</label>
+                    <input type="text" placeholder="e.g. 2025" value={myProfile.hscYear} onChange={(e) => setMyProfile({...myProfile, hscYear: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC GPA / Info (Permanent):</label>
-                    <input type="text" value="HSC '25 (Student)" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
+                    <label style={styles.label}>GPA / Status:</label>
+                    <input type="text" placeholder="e.g. GPA / Student" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} style={styles.input} />
                   </div>
 
                   <div style={{ gridColumn: "1 / -1" }}>
@@ -1728,11 +1728,11 @@ function App() {
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
               <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
-                <GraduationCap size={14} /> HSC Information:
+                <GraduationCap size={14} /> Academic Information:
               </p>
-              <p style={{ paddingLeft: "8px" }}><b>College:</b> Kurigram Govt. College</p>
-              <p style={{ paddingLeft: "8px" }}><b>Year:</b> 2025</p>
-              <p style={{ paddingLeft: "8px" }}><b>GPA:</b> Permanent</p>
+              <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>Passing Year:</b> {viewingProfile.hscYear || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>GPA/Status:</b> {viewingProfile.hscGpa || "N/A"}</p>
 
               {viewingProfile.facebook && (
                 <p><b>Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "4px" }}>Profile Link <ExternalLink size={12} /></a></p>
