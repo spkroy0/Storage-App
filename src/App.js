@@ -59,7 +59,7 @@ const BOOK_LIST = [
   "নিউমেরিক্যাল অ্যানালিসিস (Numerical Analysis) – কোড: ২৩৩৭০৫",
   "কমপ্লেক্স অ্যানালিসিস (Complex Analysis) – কোড: ২৩৩৭০৭",
   "ডিফারেনশিয়াল জিওমেট্রি (Differential Geometry) – কোড: ২৩৩৭০৯",
-  "মেকানিক্স (Mechanics) – কোড: ২৩৩৭১১",
+  "মেকানিক্স (Mechanics) – কোড: ২৩3৭১১",
   "লিনিয়ার প্রোগ্রামিং (Linear Programming) – কোড: ২৩৩৭১৩",
   "ভাইভা-ভেসিলি / মৌখিক পরীক্ষা (Viva-Voce) – কোড: ২৩৩৭২০",
   "থিওরি অব নাম্বারস (Theory of Numbers) – কোড: ২৪৩৭০১",
@@ -1062,13 +1062,6 @@ function App() {
             </button>
           </div>
 
-          <div style={styles.animatedNoticeBanner}>
-            <Info size={18} color="#38bdf8" />
-            <span style={styles.animatedNoticeText}>
-              ৩ জন মডারেটর প্রয়োজন! যারা ১-৩০ আগস্ট টপ লিডারবোর্ডে থাকবেন তাদের নিয়োগ দেওয়া হবে।
-            </span>
-          </div>
-
           {currentView === "profile" && (
             <div style={styles.profileSection}>
               <h2 style={{ color: "#f8fafc", marginBottom: "20px", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1722,19 +1715,6 @@ const styles = {
   
   mainFeed: { maxWidth: "860px", margin: "25px auto", padding: "0 16px" },
   userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "12px 18px", borderRadius: "10px", border: "1px solid #1e293b", marginBottom: "16px" },
-  
-  animatedNoticeBanner: {
-    backgroundColor: "#0f172a",
-    border: "1px solid #1e293b",
-    borderLeft: "4px solid #38bdf8",
-    padding: "12px 16px",
-    borderRadius: "8px",
-    marginBottom: "20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px"
-  },
-  animatedNoticeText: { color: "#cbd5e1", fontSize: "13px" },
 
   studentBadge: { backgroundColor: "#1e293b", color: "#94a3b8", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "500" },
   adminBadge: { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(239, 68, 68, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
