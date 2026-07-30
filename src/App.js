@@ -255,7 +255,7 @@ function NoteCardItem({
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState("home"); // 'home', 'dashboard', 'profile'
+  const [currentView, setCurrentView] = useState("home"); 
   
   // App Data States
   const [allNotes, setAllNotes] = useState([]);
@@ -266,21 +266,17 @@ function App() {
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  // Public Profile View Modal State
   const [viewingProfile, setViewingProfile] = useState(null);
 
-  // Edit Note Modal States
   const [editingNote, setEditingNote] = useState(null);
   const [editFileName, setEditFileName] = useState("");
   const [editPdfInfo, setEditPdfInfo] = useState("");
 
-  // Upload Note States
   const [file, setFile] = useState(null);
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [pdfInfo, setPdfInfo] = useState(""); 
   
-  // Auth States
   const [authMode, setAuthMode] = useState("google");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -288,14 +284,11 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
 
-  // Login Welcome Floating Message State
   const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
 
-  // Profile Edit States
   const [myProfile, setMyProfile] = useState({
     displayName: "",
     whatsapp: "",
@@ -316,22 +309,18 @@ function App() {
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState("");
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Dashboard Selected User State
   const [selectedDashboardUid, setSelectedDashboardUid] = useState(null);
   const [commentText, setCommentText] = useState({});
 
-  // Supports both Vite (import.meta.env) and CRA (process.env) for Vercel deployment safety
   const FILE_HOST_API_KEY = (typeof process !== "undefined" && process.env?.REACT_APP_IMGBB_API_KEY) || 
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_IMGBB_API_KEY) || 
     "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
-  // Dynamic Role Resolver
   const getUserRole = (uEmail, uUid) => {
     if (uEmail && ADMIN_EMAILS.includes(uEmail.toLowerCase())) return "Admin";
     const foundUser = allUsers.find(u => u.uid === uUid || (uEmail && u.email === uEmail));
@@ -345,7 +334,6 @@ function App() {
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
 
-  // Check if profile is incomplete
   const isProfileIncomplete = user && (
     !myProfile.displayName?.trim() ||
     !myProfile.instituteName?.trim() ||
@@ -353,7 +341,6 @@ function App() {
     !myProfile.address?.trim()
   );
 
-  // Helper to Log Activity
   const logActivity = async (action, details) => {
     try {
       const uName = myProfile.displayName || user?.displayName || user?.email?.split("@")[0] || "System";
@@ -370,7 +357,6 @@ function App() {
     }
   };
 
-  // Helper to Push Notification
   const pushNotification = async (targetUid, title, message, type = "info", fileUrl = null) => {
     try {
       await addDoc(collection(db, "notifications"), {
@@ -411,7 +397,7 @@ function App() {
         const userRef = doc(db, "users", currentUser.uid);
         await setDoc(userRef, {
           uid: currentUser.uid,
-          displayName: currentUser.displayName || currentUser.email.split("@")[0],
+          displayName: currentUser.displayName || currentUser.email?.split("@")[0] || "User",
           email: currentUser.email,
         }, { merge: true });
       }
@@ -729,7 +715,7 @@ function App() {
 
       if (result.success || result.data?.url) {
         const downloadURL = result.data.url;
-        const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+        const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
 
         await addDoc(collection(db, "notes"), {
           fileName: file.name,
@@ -814,7 +800,7 @@ function App() {
           cares: arrayRemove(user.uid) 
         });
 
-        const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+        const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
 
         if (!isOwnPost) {
           await pushNotification(
@@ -845,7 +831,7 @@ function App() {
     const text = commentText[note.id];
     if (!text || !text.trim()) return;
 
-    const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+    const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
     const newComment = {
       id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
       userName: uName,
@@ -907,7 +893,7 @@ function App() {
       if (window.confirm("মডারেটর হিসেবে আপনি এটি ডিলিট করার অনুরোধ পাঠাতে চান?")) {
         try {
           const noteRef = doc(db, "notes", note.id);
-          const modName = myProfile.displayName || user.displayName || user.email.split('@')[0];
+          const modName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "Mod";
           await updateDoc(noteRef, {
             isPendingDelete: true,
             deletedByModName: modName
@@ -1138,7 +1124,7 @@ function App() {
       {user && isCurrentUserBanned && (
         <div style={styles.bannedBanner}>
           <AlertTriangle size={20} color="#f87171" />
-          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেন না।</span>
+          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেনবিধা নেই।</span>
         </div>
       )}
 
@@ -1248,7 +1234,7 @@ function App() {
               />
               <div>
                 <span style={{ fontWeight: "600", color: "#f8fafc", display: "flex", alignItems: "center", gap: "6px", fontSize: "14px" }}>
-                  {myProfile.displayName || user.displayName || user.email}
+                  {myProfile.displayName || user.displayName || user.email?.split('@')[0]}
                   <RoleBadge role={currentUserRole} />
                 </span>
                 <span style={{ fontSize: "12px", color: "#94a3b8" }}>
@@ -1422,7 +1408,7 @@ function App() {
                             onClick={() => setViewingProfile(u)} 
                             style={{ color: "#f8fafc", cursor: "pointer", fontWeight: "500", display: "flex", alignItems: "center", gap: "6px" }}
                           >
-                            {u.displayName || "User"}
+                            {u.displayName || u.email?.split('@')[0] || "User"}
                             <RoleBadge role={uRole} />
                           </span>
                         </div>
@@ -1483,7 +1469,7 @@ function App() {
                             borderColor: u.isBanned ? "#ef4444" : "rgba(255,255,255,0.1)"
                           }}
                         >
-                          {u.displayName || u.email.split('@')[0]}
+                          {u.displayName || u.email?.split('@')[0] || "User"}
                           {u.isBanned && <span style={{ color: "#ef4444", marginLeft: "4px", fontSize: "10px" }}>(Banned)</span>}
                         </button>
                         <button 
