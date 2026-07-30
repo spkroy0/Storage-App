@@ -29,7 +29,7 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -139,6 +139,7 @@ function App() {
     dob: "",
     address: "",
     deptRoll: "",
+    instituteName: "", // University/College Name
     hscCollege: "",
     hscYear: "",
     hscGpa: "",
@@ -160,7 +161,7 @@ function App() {
   const [selectedDashboardUid, setSelectedDashboardUid] = useState(null);
   const [commentText, setCommentText] = useState({});
 
-  const FILE_HOST_API_KEY = "5bbd692b6ba3cbb1ce420857c904c34b"; 
+  const FILE_HOST_API_KEY = process.env.REACT_APP_IMGBB_API_KEY || "5bbd692b6ba3cbb1ce420857c904c34b"; 
 
   // Dynamic Role Resolver
   const getUserRole = (uEmail, uUid) => {
@@ -175,6 +176,15 @@ function App() {
   const currentUserRole = user ? getUserRole(user.email, user.uid) : "Student";
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
+
+  // Check if profile is incomplete
+  const isProfileIncomplete = user && (
+    !myProfile.displayName?.trim() ||
+    !myProfile.instituteName?.trim() ||
+    !myProfile.deptRoll?.trim() ||
+    !myProfile.whatsapp?.trim() ||
+    !myProfile.address?.trim()
+  );
 
   // Helper to Log Activity
   const logActivity = async (action, details) => {
@@ -193,14 +203,15 @@ function App() {
     }
   };
 
-  // Helper to Push Notification
-  const pushNotification = async (targetUid, title, message, type = "info") => {
+  // Helper to Push Notification with optional File Link
+  const pushNotification = async (targetUid, title, message, type = "info", fileUrl = null) => {
     try {
       await addDoc(collection(db, "notifications"), {
         targetUid: targetUid, // "all" or specific user UID
         title: title,
         message: message,
         type: type,
+        fileUrl: fileUrl,
         createdAt: new Date(),
         readBy: []
       });
@@ -253,6 +264,7 @@ function App() {
             dob: foundMe.dob || "",
             address: foundMe.address || "",
             deptRoll: foundMe.deptRoll || "",
+            instituteName: foundMe.instituteName || "",
             hscCollege: foundMe.hscCollege || "",
             hscYear: foundMe.hscYear || "",
             hscGpa: foundMe.hscGpa || "",
@@ -378,15 +390,14 @@ function App() {
       try {
         const targetUid = targetUser.uid;
 
-        // 1. Delete user notes
+        // 1. Delete user notes (using Promise.all for safe async deletion)
         const notesQuery = query(collection(db, "notes"), where("uploaderUid", "==", targetUid));
         const userNotesSnap = await getDocs(notesQuery);
-        userNotesSnap.forEach(async (docSnap) => {
-          await deleteDoc(doc(db, "notes", docSnap.id));
-        });
+        const noteDeletePromises = userNotesSnap.docs.map(docSnap => deleteDoc(doc(db, "notes", docSnap.id)));
+        await Promise.all(noteDeletePromises);
 
         // 2. Remove comments made by this user in remaining notes
-        allNotes.forEach(async (n) => {
+        const commentUpdatePromises = allNotes.map(async (n) => {
           const userComments = n.comments?.filter(c => c.userUid === targetUid) || [];
           if (userComments.length > 0) {
             const noteRef = doc(db, "notes", n.id);
@@ -395,13 +406,13 @@ function App() {
             }
           }
         });
+        await Promise.all(commentUpdatePromises);
 
         // 3. Delete user activity logs
         const logsQuery = query(collection(db, "activity_logs"), where("userUid", "==", targetUid));
         const logsSnap = await getDocs(logsQuery);
-        logsSnap.forEach(async (docSnap) => {
-          await deleteDoc(doc(db, "activity_logs", docSnap.id));
-        });
+        const logDeletePromises = logsSnap.docs.map(docSnap => deleteDoc(doc(db, "activity_logs", docSnap.id)));
+        await Promise.all(logDeletePromises);
 
         // 4. Delete user document from Firestore
         await deleteDoc(doc(db, "users", targetUser.id));
@@ -490,6 +501,7 @@ function App() {
         dob: myProfile.dob,
         address: myProfile.address,
         deptRoll: myProfile.deptRoll,
+        instituteName: myProfile.instituteName,
         hscCollege: myProfile.hscCollege,
         hscYear: myProfile.hscYear,
         hscGpa: myProfile.hscGpa,
@@ -558,9 +570,9 @@ function App() {
 
         await updateUserScore(user.uid, 100);
 
-        // Global Notification & Activity Log
+        // Global Notification & Activity Log (Includes fileUrl to open directly on click)
         const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
-        await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`);
+        await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
         await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
 
         setUploading(false);
@@ -627,7 +639,9 @@ function App() {
           await pushNotification(
             note.uploaderUid,
             "নতুন রিঅ্যাকশন!",
-            `${uName} আপনার পোস্টে Love রিঅ্যাক্ট দিয়েছে।`
+            `${uName} আপনার পোস্টে Love রিঅ্যাক্ট দিয়েছে।`,
+            "info",
+            note.fileUrl
           );
         }
 
@@ -652,7 +666,7 @@ function App() {
 
     const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
     const newComment = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2, 5),
       userName: uName,
       userUid: user.uid,
       userEmail: user.email,
@@ -670,7 +684,9 @@ function App() {
       await pushNotification(
         note.uploaderUid,
         "নতুন কমেন্ট!",
-        `${uName} আপনার পোস্টে কমেন্ট করেছে: "${text.trim().substring(0, 30)}..."`
+        `${uName} আপনার পোস্টে কমেন্ট করেছে: "${text.trim().substring(0, 30)}..."`,
+        "info",
+        note.fileUrl
       );
     }
 
@@ -766,6 +782,16 @@ function App() {
     }
   };
 
+  // Notification Click Handler to View/Open Attached File
+  const handleNotificationClick = (notif) => {
+    if (notif.fileUrl) {
+      window.open(notif.fileUrl, "_blank");
+    } else {
+      setCurrentView("home");
+    }
+    setShowNotifDropdown(false);
+  };
+
   const filterNotesNotFromBanned = (notesList) => {
     if (isAdmin) return notesList;
     const bannedUids = allUsers.filter(u => u.isBanned).map(u => u.uid);
@@ -798,8 +824,8 @@ function App() {
       {/* HEADER */}
       <header style={styles.header}>
         <div>
-          <h1 style={styles.logo} className="rgb-text-glow">KGC Math '26 Hub</h1>
-          <p style={styles.subLogo}>Kurigram Govt. College • Mathematics Dept.</p>
+          <h1 style={styles.logo} className="rgb-text-glow">Math Note HUB</h1>
+          <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
         </div>
 
         {user && (
@@ -814,7 +840,7 @@ function App() {
               <User size={16} /> My Profile
             </button>
 
-            {/* ACTIVITY LOGS BTN (For Admin, Moderator, Guest Admin) */}
+            {/* ACTIVITY LOGS BTN (For Admin, Moderator) */}
             {isModOrAdmin && (
               <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
                 <Activity size={16} /> Logs
@@ -828,7 +854,7 @@ function App() {
                 {userNotifications.length > 0 && <span style={styles.notifBadge}>{userNotifications.length}</span>}
               </button>
 
-              {/* NOTIFICATION DROPDOWN */}
+              {/* NOTIFICATION DROPDOWN WITH CLICKABLE FILES */}
               {showNotifDropdown && (
                 <div style={styles.notifDropdown}>
                   <div style={styles.notifHeader}>
@@ -840,11 +866,21 @@ function App() {
                       <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
                     ) : (
                       userNotifications.map(n => (
-                        <div key={n.id} style={{
-                          ...styles.notifItem,
-                          borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8"
-                        }}>
-                          <b style={{ color: "#f8fafc", fontSize: "12px" }}>{n.title}</b>
+                        <div 
+                          key={n.id} 
+                          onClick={() => handleNotificationClick(n)}
+                          className="notification-item"
+                          style={{
+                            ...styles.notifItem,
+                            borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
+                            cursor: "pointer"
+                          }}
+                          title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
+                        >
+                          <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            {n.title}
+                            {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
+                          </b>
                           <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
                         </div>
                       ))
@@ -869,10 +905,22 @@ function App() {
         </div>
       )}
 
+      {/* INCOMPLETE PROFILE FLOATING NOTICE BANNER */}
+      {user && isProfileIncomplete && (
+        <div className="floating-notice">
+          <p className="notice-text">
+            <AlertTriangle size={16} /> অনুগ্রহ করে আপনার প্রোফাইল ফিল্ডগুলো (University/College Name ইত্যাদি) পূর্ণাঙ্গ আপডেট করুন!
+          </p>
+          <button onClick={() => setCurrentView("profile")} className="notice-btn">
+            প্রোফাইল আপডেট করুন
+          </button>
+        </div>
+      )}
+
       {!user ? (
         <div style={styles.heroSection}>
           <div style={styles.welcomeBox}>
-            <h2 style={{ color: "#38bdf8", marginBottom: "8px", fontWeight: "600" }}>স্বাগতম ম্যাথ ডিপার্টমেন্ট ২০২৬ ব্যাচ </h2>
+            <h2 style={{ color: "#38bdf8", marginBottom: "8px", fontWeight: "600" }}>স্বাগতম Math Note HUB-এ</h2>
             <p style={{ color: "#94a3b8", fontSize: "14px" }}>নোট দেখতে ও পয়েন্ট অর্জন করতে অ্যাকাউন্টে লগইন করুন।</p>
           </div>
 
@@ -897,7 +945,7 @@ function App() {
                   <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required style={styles.input} />
                 )}
                 <button type="submit" style={styles.submitBtn}>{isSignUp ? "Sign Up" : "Log In"}</button>
-               <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}>
+                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}>
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
                 </p>
               </form>
@@ -983,6 +1031,19 @@ function App() {
                     <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required style={styles.input} />
                   </div>
 
+                  {/* NEW UNIVERSITY / COLLEGE NAME FIELD */}
+                  <div>
+                    <label style={styles.label}>University / College Name:</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Kurigram Govt. College" 
+                      value={myProfile.instituteName} 
+                      onChange={(e) => setMyProfile({...myProfile, instituteName: e.target.value})} 
+                      required 
+                      style={styles.input} 
+                    />
+                  </div>
+
                   <div>
                     <label style={styles.label}>Department Roll No.:</label>
                     <input type="text" placeholder="e.g. 240105" value={myProfile.deptRoll} onChange={(e) => setMyProfile({...myProfile, deptRoll: e.target.value})} required style={styles.input} />
@@ -990,7 +1051,7 @@ function App() {
 
                   <div>
                     <label style={styles.label}>WhatsApp Number:</label>
-                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} style={styles.input} />
+                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
@@ -1406,6 +1467,9 @@ function App() {
             </div>
 
             <div style={styles.profileDetailsList}>
+              <p style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Building size={14} color="#38bdf8" /> <b>Institution:</b> {viewingProfile.instituteName || "N/A"}
+              </p>
               <p><b>Dept. Roll:</b> {viewingProfile.deptRoll || "N/A"}</p>
               <p>
                 <b>WhatsApp:</b> <WhatsAppCopyButton number={viewingProfile.whatsapp} />
@@ -1431,7 +1495,7 @@ function App() {
       )}
 
       <footer style={styles.footer}>
-        <p>© 2026 Kurigram Govt. College (Math Dept) | Developed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8"}}>Anondo</a></p>
+        <p>© 2026 Math Note HUB | Developed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8"}}>Anondo</a></p>
       </footer>
     </div>
   );
@@ -1556,7 +1620,7 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
 const styles = {
   container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc" },
   header: { backgroundColor: "#0f172a", padding: "14px 6%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "10px" },
-  logo: { fontSize: "18px", color: "#f8fafc", margin: 0, fontWeight: "700", letterSpacing: "0.5px" },
+  logo: { fontSize: "20px", color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
   subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
   branding: { fontSize: "12px", color: "#64748b" },
   brandLink: { color: "#38bdf8", textDecoration: "none", fontWeight: "600" },
@@ -1568,10 +1632,10 @@ const styles = {
 
   notifIconBtn: { backgroundColor: "#1e293b", color: "#cbd5e1", border: "1px solid #334155", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", position: "relative", display: "flex", alignItems: "center" },
   notifBadge: { position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#fff", borderRadius: "50%", padding: "1px 5px", fontSize: "10px", fontWeight: "bold" },
-  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "280px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
+  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "290px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
   notifHeader: { padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "#f8fafc" },
   notifList: { maxHeight: "250px", overflowY: "auto" },
-  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", backgroundColor: "#090d16" },
+  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", backgroundColor: "#090d16", transition: "background 0.2s" },
 
   bannedBanner: { backgroundColor: "rgba(220, 38, 38, 0.15)", borderBottom: "1px solid #dc2626", color: "#f87171", padding: "10px 20px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
 
