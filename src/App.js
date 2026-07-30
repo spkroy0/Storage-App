@@ -1026,7 +1026,7 @@ function App() {
       <header style={styles.header}>
         <div style={{ width: "100%", marginBottom: "8px" }}>
           <marquee behavior="scroll" direction="left" scrollamount="5" style={{ color: "#facc15", fontWeight: "600", fontSize: "14px", backgroundColor: "#1e293b", padding: "4px 0", borderRadius: "4px" }}>
-            website টির কাজ চলমান,সাময়িক ত্রুটি হতে পারে। যেকোনো সমস্যা admin কে message/whatsapp করুন
+            website টির কাজ চলমান,সাময়িক ত্রুটি হতে পারে। যেকোনো সমস্যা admin কে whatsapp (✉ +8801522107909) only message করুন
           </marquee>
         </div>
 
