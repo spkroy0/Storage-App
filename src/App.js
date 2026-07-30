@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail // <--- Password Reset Import
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { 
   collection, 
@@ -678,7 +678,7 @@ function App() {
 
     const uName = myProfile.displayName || user.displayName || user.email.split('@')[0];
     const newComment = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2, 5),
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
       userName: uName,
       userUid: user.uid,
       userEmail: user.email,
@@ -923,7 +923,6 @@ function App() {
 
       {!user ? (
         <div style={styles.heroSection}>
-          {/* UPDATED WELCOME CAPTION HERE */}
           <div style={styles.welcomeBox}>
             <h2 style={{ color: "#38bdf8", marginBottom: "12px", fontWeight: "700", fontSize: "18px", lineHeight: "1.5" }}>
               BSc Math-এর জটিল প্রমাণ আর থিওরেম নিয়ে চিন্তিত? এক ক্লিকেই সমাধান তোমার হাতের মুঠোয়। 
@@ -979,7 +978,6 @@ function App() {
               </form>
             )}
 
-            {/* PASSWORD RESET FORM */}
             {isResetMode && (
               <form onSubmit={handleForgotPassword} style={styles.form}>
                 <p style={{ color: "#cbd5e1", fontSize: "12px", marginBottom: "5px" }}>
@@ -1009,7 +1007,6 @@ function App() {
       ) : (
         <div style={styles.mainFeed}>
           
-          {/* USER QUICK BAR */}
           <div style={styles.userBar}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <img 
@@ -1039,7 +1036,6 @@ function App() {
             </span>
           </div>
 
-          {/* EDIT PROFILE VIEW */}
           {currentView === "profile" && (
             <div style={styles.profileSection}>
               <h2 style={{ color: "#f8fafc", marginBottom: "20px", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1150,7 +1146,6 @@ function App() {
             </div>
           )}
 
-          {/* DASHBOARD VIEW */}
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
@@ -1309,7 +1304,6 @@ function App() {
             </div>
           )}
 
-          {/* HOME VIEW */}
           {currentView === "home" && (
             <>
               <div style={styles.searchSection}>
@@ -1418,7 +1412,6 @@ function App() {
         </div>
       )}
 
-      {/* ACTIVITY LOGS MODAL */}
       {showLogsModal && (
         <div style={styles.modalOverlay}>
           <div style={{ ...styles.modalCard, maxWidth: "550px" }}>
@@ -1451,7 +1444,6 @@ function App() {
         </div>
       )}
 
-      {/* EDIT NOTE MODAL */}
       {editingNote && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
@@ -1485,7 +1477,6 @@ function App() {
         </div>
       )}
 
-      {/* PUBLIC PROFILE VIEW MODAL */}
       {viewingProfile && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
@@ -1525,7 +1516,7 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
               <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
@@ -1547,7 +1538,6 @@ function App() {
   );
 }
 
-// SINGLE NOTE CARD COMPONENT
 function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUserBanned, handleReactionToggle, handleAddComment, handleDeleteComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, handleOpenEditModal, setViewingProfile, getUserRole }) {
   const hasLoved = note.loves?.includes(user?.uid);
 
