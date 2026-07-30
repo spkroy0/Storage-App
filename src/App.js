@@ -160,6 +160,9 @@ function App() {
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
 
+  // Login Welcome Floating Message State
+  const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
+
   // Profile Edit States
   const [myProfile, setMyProfile] = useState({
     displayName: "",
@@ -170,9 +173,9 @@ function App() {
     address: "",
     deptRoll: "",
     instituteName: "", 
-    hscCollege: "",
-    hscYear: "",
-    hscGpa: "",
+    hscCollege: "Kurigram Govt. College",
+    hscYear: "2025",
+    hscGpa: "Permanent",
     photoUrl: "",
     points: 0,
     role: "Student",
@@ -207,12 +210,11 @@ function App() {
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
 
-  // Check if profile is incomplete
+  // Check if profile is incomplete (whatsapp removed from mandatory check)
   const isProfileIncomplete = user && (
     !myProfile.displayName?.trim() ||
     !myProfile.instituteName?.trim() ||
     !myProfile.deptRoll?.trim() ||
-    !myProfile.whatsapp?.trim() ||
     !myProfile.address?.trim()
   );
 
@@ -262,6 +264,14 @@ function App() {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser && !user) {
+        // Trigger 5s RGB Floating Welcome Message on Login
+        setShowWelcomeMsg(true);
+        setTimeout(() => {
+          setShowWelcomeMsg(false);
+        }, 5000);
+      }
+
       setUser(currentUser);
       if (currentUser) {
         const userRef = doc(db, "users", currentUser.uid);
@@ -296,9 +306,9 @@ function App() {
             address: foundMe.address || "",
             deptRoll: foundMe.deptRoll || "",
             instituteName: foundMe.instituteName || "",
-            hscCollege: foundMe.hscCollege || "",
-            hscYear: foundMe.hscYear || "",
-            hscGpa: foundMe.hscGpa || "",
+            hscCollege: "Kurigram Govt. College",
+            hscYear: "2025",
+            hscGpa: "Permanent",
             photoUrl: foundMe.photoUrl || "",
             points: foundMe.points || 0,
             role: foundMe.role || "Student",
@@ -541,9 +551,9 @@ function App() {
         address: myProfile.address,
         deptRoll: myProfile.deptRoll,
         instituteName: myProfile.instituteName,
-        hscCollege: myProfile.hscCollege,
-        hscYear: myProfile.hscYear,
-        hscGpa: myProfile.hscGpa,
+        hscCollege: "Kurigram Govt. College",
+        hscYear: "2025",
+        hscGpa: "Permanent",
         photoUrl: finalPhotoUrl
       });
 
@@ -818,7 +828,6 @@ function App() {
     }
   };
 
-  // রিয়েল নোটিফিকেশন ক্লিক হ্যান্ডলার ও মার্ক এজ রিড লজিক
   const handleNotificationClick = async (notif) => {
     try {
       if (user && (!notif.readBy || !notif.readBy.includes(user.uid))) {
@@ -839,7 +848,6 @@ function App() {
     setShowNotifDropdown(false);
   };
 
-  // রিয়েল "Mark All as Read" ফাংশন
   const handleMarkAllAsRead = async () => {
     if (!user) return;
     try {
@@ -894,89 +902,104 @@ function App() {
 
   return (
     <div style={styles.container}>
-      {/* HEADER */}
+      {/* HEADER WITH MARQUEE */}
       <header style={styles.header}>
-        <div>
-          <h1 style={styles.logo} className="rgb-text-glow">Math Note HUB</h1>
-          <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
+        <div style={{ width: "100%", marginBottom: "8px" }}>
+          <marquee behavior="scroll" direction="left" scrollamount="5" style={{ color: "#facc15", fontWeight: "600", fontSize: "14px", backgroundColor: "#1e293b", padding: "4px 0", borderRadius: "4px" }}>
+            website টির কাজ চলমান,সাময়িক ত্রুটি হতে পারে। যেকোনো সমস্যা admin কে message/whatsapp করুন
+          </marquee>
         </div>
 
-        {user && (
-          <div style={styles.navTabs}>
-            <button onClick={() => setCurrentView("home")} style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}>
-              <Home size={16} /> Home
-            </button>
-            <button onClick={() => setCurrentView("dashboard")} style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}>
-              <LayoutDashboard size={16} /> Dashboard
-            </button>
-            <button onClick={() => setCurrentView("profile")} style={{ ...styles.navBtn, ...(currentView === "profile" ? styles.activeNavBtn : {}) }}>
-              <User size={16} /> My Profile
-            </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <h1 style={styles.logo} className="rgb-text-glow">Math Note HUB</h1>
+            <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
+          </div>
 
-            {isModOrAdmin && (
-              <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
-                <Activity size={16} /> Logs
+          {user && (
+            <div style={styles.navTabs}>
+              <button onClick={() => setCurrentView("home")} style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}>
+                <Home size={16} /> Home
               </button>
-            )}
-
-            <div style={{ position: "relative" }}>
-              <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
-                <Bell size={16} />
-                {unreadNotifCount > 0 && <span style={styles.notifBadge}>{unreadNotifCount}</span>}
+              <button onClick={() => setCurrentView("dashboard")} style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}>
+                <LayoutDashboard size={16} /> Dashboard
+              </button>
+              <button onClick={() => setCurrentView("profile")} style={{ ...styles.navBtn, ...(currentView === "profile" ? styles.activeNavBtn : {}) }}>
+                <User size={16} /> My Profile
               </button>
 
-              {showNotifDropdown && (
-                <div style={styles.notifDropdown}>
-                  <div style={styles.notifHeader}>
-                    <b>Notifications ({userNotifications.length})</b>
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      {unreadNotifCount > 0 && (
-                        <span onClick={handleMarkAllAsRead} style={{ cursor: "pointer", fontSize: "11px", color: "#38bdf8", display: "flex", alignItems: "center", gap: "2px" }} title="Mark all as read">
-                          <CheckCheck size={12} /> Mark all read
-                        </span>
+              {isModOrAdmin && (
+                <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
+                  <Activity size={16} /> Logs
+                </button>
+              )}
+
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
+                  <Bell size={16} />
+                  {unreadNotifCount > 0 && <span style={styles.notifBadge}>{unreadNotifCount}</span>}
+                </button>
+
+                {showNotifDropdown && (
+                  <div style={styles.notifDropdown}>
+                    <div style={styles.notifHeader}>
+                      <b>Notifications ({userNotifications.length})</b>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        {unreadNotifCount > 0 && (
+                          <span onClick={handleMarkAllAsRead} style={{ cursor: "pointer", fontSize: "11px", color: "#38bdf8", display: "flex", alignItems: "center", gap: "2px" }} title="Mark all as read">
+                            <CheckCheck size={12} /> Mark all read
+                          </span>
+                        )}
+                        <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
+                      </div>
+                    </div>
+                    <div style={styles.notifList}>
+                      {userNotifications.length === 0 ? (
+                        <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
+                      ) : (
+                        userNotifications.map(n => {
+                          const isUnread = !n.readBy || !n.readBy.includes(user?.uid);
+                          return (
+                            <div 
+                              key={n.id} 
+                              onClick={() => handleNotificationClick(n)}
+                              className="notification-item"
+                              style={{
+                                ...styles.notifItem,
+                                backgroundColor: isUnread ? "#132238" : "#090d16",
+                                borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
+                                cursor: "pointer"
+                              }}
+                              title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
+                            >
+                              <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                {n.title}
+                                {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
+                              </b>
+                              <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
+                            </div>
+                          );
+                        })
                       )}
-                      <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
                     </div>
                   </div>
-                  <div style={styles.notifList}>
-                    {userNotifications.length === 0 ? (
-                      <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
-                    ) : (
-                      userNotifications.map(n => {
-                        const isUnread = !n.readBy || !n.readBy.includes(user?.uid);
-                        return (
-                          <div 
-                            key={n.id} 
-                            onClick={() => handleNotificationClick(n)}
-                            className="notification-item"
-                            style={{
-                              ...styles.notifItem,
-                              backgroundColor: isUnread ? "#132238" : "#090d16",
-                              borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
-                              cursor: "pointer"
-                            }}
-                            title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
-                          >
-                            <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                              {n.title}
-                              {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
-                            </b>
-                            <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div style={styles.branding}>
-          Designed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>Anondo</a>
+          <div style={styles.branding}>
+            Designed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>Anondo</a>
+          </div>
         </div>
       </header>
+
+      {/* 5 SEC FLOATING RGB WELCOME MESSAGE ON LOGIN */}
+      {showWelcomeMsg && (
+        <div style={styles.rgbFloatingWelcome} className="rgb-floating-msg">
+          🎉 স্বাগতম! সফলভাবে লগইন সম্পন্ন হয়েছে।
+        </div>
+      )}
 
       {user && isCurrentUserBanned && (
         <div style={styles.bannedBanner}>
@@ -1167,8 +1190,8 @@ function App() {
                   </div>
 
                   <div>
-                    <label style={styles.label}>WhatsApp Number:</label>
-                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required style={styles.input} />
+                    <label style={styles.label}>WhatsApp Number (Optional):</label>
+                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
@@ -1187,18 +1210,18 @@ function App() {
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC College Name (Optional):</label>
-                    <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} style={styles.input} />
+                    <label style={styles.label}>HSC College Name (Permanent):</label>
+                    <input type="text" value="Kurigram Govt. College" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC Passing Year (Optional):</label>
-                    <input type="text" placeholder="e.g. 2024" value={myProfile.hscYear} onChange={(e) => setMyProfile({...myProfile, hscYear: e.target.value})} style={styles.input} />
+                    <label style={styles.label}>HSC Passing Year (Permanent):</label>
+                    <input type="text" value="2025" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
                   </div>
 
                   <div>
-                    <label style={styles.label}>HSC GPA (Optional):</label>
-                    <input type="text" placeholder="e.g. 5.00" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} style={styles.input} />
+                    <label style={styles.label}>HSC GPA / Info (Permanent):</label>
+                    <input type="text" value="HSC '25 (Student)" disabled style={{ ...styles.input, backgroundColor: "#1e293b", color: "#94a3b8", cursor: "not-allowed" }} />
                   </div>
 
                   <div style={{ gridColumn: "1 / -1" }}>
@@ -1587,9 +1610,9 @@ function App() {
               <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
-              <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
-              <p style={{ paddingLeft: "8px" }}><b>Year:</b> {viewingProfile.hscYear || "N/A"}</p>
-              <p style={{ paddingLeft: "8px" }}><b>GPA:</b> {viewingProfile.hscGpa || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>College:</b> Kurigram Govt. College</p>
+              <p style={{ paddingLeft: "8px" }}><b>Year:</b> 2025</p>
+              <p style={{ paddingLeft: "8px" }}><b>GPA:</b> Permanent</p>
 
               {viewingProfile.facebook && (
                 <p><b>Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "4px" }}>Profile Link <ExternalLink size={12} /></a></p>
@@ -1723,12 +1746,12 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
 // STYLES OBJECT
 const styles = {
   container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc" },
-  header: { backgroundColor: "#0f172a", padding: "14px 6%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "10px" },
+  header: { backgroundColor: "#0f172a", padding: "10px 6%", display: "flex", flexDirection: "column", borderBottom: "1px solid #1e293b" },
   logo: { fontSize: "20px", color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
   subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
   branding: { fontSize: "12px", color: "#64748b" },
   brandLink: { color: "#38bdf8", textDecoration: "none", fontWeight: "600" },
-  navTabs: { display: "flex", gap: "6px", alignItems: "center" },
+  navTabs: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" },
   navBtn: { padding: "7px 14px", border: "1px solid transparent", background: "transparent", color: "#94a3b8", borderRadius: "6px", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "0.2s" },
   activeNavBtn: { backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #334155" },
 
@@ -1742,6 +1765,20 @@ const styles = {
   notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", transition: "background 0.2s" },
 
   bannedBanner: { backgroundColor: "rgba(220, 38, 38, 0.15)", borderBottom: "1px solid #dc2626", color: "#f87171", padding: "10px 20px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
+
+  rgbFloatingWelcome: {
+    position: "fixed",
+    top: "20px",
+    right: "20px",
+    zIndex: 9999,
+    background: "#111",
+    padding: "15px 25px",
+    borderRadius: "8px",
+    border: "3px solid red",
+    fontWeight: "bold",
+    fontSize: "16px",
+    animation: "rgbGlow 1.5s infinite"
+  },
 
   heroSection: { maxWidth: "480px", margin: "40px auto", padding: "0 20px" },
   welcomeBox: { textAlign: "center", marginBottom: "25px" },
