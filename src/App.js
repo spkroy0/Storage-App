@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail // <--- Password Reset Import
 } from "firebase/auth";
 import { 
   collection, 
@@ -68,12 +68,14 @@ function WhatsAppCopyButton({ number }) {
   if (!number) return <span>N/A</span>;
 
   return (
-    <div className="wa-copy-wrapper">
-      {copied && <span className="copy-toast">Copied!</span>}
+    <div style={{ display: "inline-block", position: "relative" }}>
+      {copied && (
+        <span style={styles.copyToast}>Copied!</span>
+      )}
       <button 
         type="button" 
         onClick={handleCopy} 
-        className="wa-copy-btn"
+        style={styles.waCopyBtn}
         title="Click to copy WhatsApp number"
       >
         <span>{number}</span>
@@ -86,12 +88,12 @@ function WhatsAppCopyButton({ number }) {
 // ROLE BADGE COMPONENT WITH ANIMATED GLOW
 function RoleBadge({ role }) {
   if (role === "Admin") {
-    return <span className="badge badge-admin rgb-pulse"><Crown size={11} /> Admin</span>;
+    return <span style={styles.adminBadge} className="rgb-pulse"><Crown size={11} /> Admin</span>;
   }
   if (role === "Moderator") {
-    return <span className="badge badge-mod"><Shield size={11} /> Moderator</span>;
+    return <span style={styles.modBadge}><Shield size={11} /> Moderator</span>;
   }
-  return <span className="badge badge-student">Student</span>;
+  return <span style={styles.studentBadge}>Student</span>;
 }
 
 function App() {
@@ -827,69 +829,65 @@ function App() {
   const userNotifications = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid);
 
   return (
-    <div className="app-container">
+    <div style={styles.container}>
       {/* HEADER */}
-      <header className="app-header">
+      <header style={styles.header}>
         <div>
-          <h1 className="logo-title rgb-text-glow">Math Note HUB</h1>
-          <p className="logo-subtitle">Academic & Departmental Notes Repository</p>
+          <h1 style={styles.logo} className="rgb-text-glow">Math Note HUB</h1>
+          <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
         </div>
 
         {user && (
-          <nav className="nav-tabs">
-            <button 
-              onClick={() => setCurrentView("home")} 
-              className={`nav-btn ${currentView === "home" ? "active" : ""}`}
-            >
+          <div style={styles.navTabs}>
+            <button onClick={() => setCurrentView("home")} style={{ ...styles.navBtn, ...(currentView === "home" ? styles.activeNavBtn : {}) }}>
               <Home size={16} /> Home
             </button>
-            <button 
-              onClick={() => setCurrentView("dashboard")} 
-              className={`nav-btn ${currentView === "dashboard" ? "active" : ""}`}
-            >
+            <button onClick={() => setCurrentView("dashboard")} style={{ ...styles.navBtn, ...(currentView === "dashboard" ? styles.activeNavBtn : {}) }}>
               <LayoutDashboard size={16} /> Dashboard
             </button>
-            <button 
-              onClick={() => setCurrentView("profile")} 
-              className={`nav-btn ${currentView === "profile" ? "active" : ""}`}
-            >
+            <button onClick={() => setCurrentView("profile")} style={{ ...styles.navBtn, ...(currentView === "profile" ? styles.activeNavBtn : {}) }}>
               <User size={16} /> My Profile
             </button>
 
             {isModOrAdmin && (
-              <button onClick={() => setShowLogsModal(true)} className="logs-nav-btn" title="Check Activity Logs">
+              <button onClick={() => setShowLogsModal(true)} style={styles.logsNavBtn} title="Check Activity Logs">
                 <Activity size={16} /> Logs
               </button>
             )}
 
-            <div className="notif-wrapper">
-              <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className="notif-btn">
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} style={styles.notifIconBtn}>
                 <Bell size={16} />
-                {userNotifications.length > 0 && <span className="notif-badge">{userNotifications.length}</span>}
+                {userNotifications.length > 0 && <span style={styles.notifBadge}>{userNotifications.length}</span>}
               </button>
 
               {showNotifDropdown && (
-                <div className="notif-dropdown">
-                  <div className="notif-header">
+                <div style={styles.notifDropdown}>
+                  <div style={styles.notifHeader}>
                     <b>Notifications ({userNotifications.length})</b>
-                    <span onClick={() => setShowNotifDropdown(false)} className="close-notif">Close</span>
+                    <span onClick={() => setShowNotifDropdown(false)} style={{ cursor: "pointer", fontSize: "11px", color: "#94a3b8" }}>Close</span>
                   </div>
-                  <div className="notif-list">
+                  <div style={styles.notifList}>
                     {userNotifications.length === 0 ? (
-                      <p className="no-notif">কোনো নোটিফিকেশন নেই</p>
+                      <p style={{ padding: "10px", color: "#64748b", fontSize: "12px", textAlign: "center" }}>কোনো নোটিফিকেশন নেই</p>
                     ) : (
                       userNotifications.map(n => (
                         <div 
                           key={n.id} 
                           onClick={() => handleNotificationClick(n)}
-                          className={`notif-item ${n.type}`}
+                          className="notification-item"
+                          style={{
+                            ...styles.notifItem,
+                            borderLeft: n.type === "error" ? "3px solid #ef4444" : n.type === "success" ? "3px solid #22c55e" : "3px solid #38bdf8",
+                            cursor: "pointer"
+                          }}
                           title={n.fileUrl ? "ফাইলটি দেখতে ক্লিক করুন" : ""}
                         >
-                          <b className="notif-item-title">
+                          <b style={{ color: "#f8fafc", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                             {n.title}
                             {n.fileUrl && <ExternalLink size={12} color="#00e5ff" />}
                           </b>
-                          <p className="notif-item-msg">{n.message}</p>
+                          <p style={{ margin: "2px 0 0 0", color: "#cbd5e1", fontSize: "11px" }}>{n.message}</p>
                         </div>
                       ))
                     )}
@@ -897,16 +895,16 @@ function App() {
                 </div>
               )}
             </div>
-          </nav>
+          </div>
         )}
 
-        <div className="branding">
-          Designed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" className="brand-link">Anondo</a>
+        <div style={styles.branding}>
+          Designed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={styles.brandLink}>Anondo</a>
         </div>
       </header>
 
       {user && isCurrentUserBanned && (
-        <div className="banned-banner">
+        <div style={styles.bannedBanner}>
           <AlertTriangle size={20} color="#f87171" />
           <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল তথ্য দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেন না।</span>
         </div>
@@ -924,48 +922,58 @@ function App() {
       )}
 
       {!user ? (
-        <div className="hero-section">
-          <div className="welcome-box">
-            <h2>স্বাগতম Math Note HUB-এ</h2>
-            <p>নোট দেখতে ও পয়েন্ট অর্জন করতে অ্যাকাউন্টে লগইন করুন।</p>
+        <div style={styles.heroSection}>
+          {/* UPDATED WELCOME CAPTION HERE */}
+          <div style={styles.welcomeBox}>
+            <h2 style={{ color: "#38bdf8", marginBottom: "12px", fontWeight: "700", fontSize: "18px", lineHeight: "1.5" }}>
+              BSc Math-এর জটিল প্রমাণ আর থিওরেম নিয়ে চিন্তিত? এক ক্লিকেই সমাধান তোমার হাতের মুঠোয়। 
+            </h2>
+            <p style={{ color: "#cbd5e1", fontSize: "14px", lineHeight: "1.6", margin: "0 0 10px 0" }}>
+              পাস মার্ক নয়, BSc Mathematics-এ টপ করার প্রস্তুতি শুরু হোক এখান থেকেই! টপ গ্র্যাজুয়েটদের তৈরি নোট ও ক্লাসরুমের খাতার সহজ সমাধান—একদম বিনামূল্যে।
+            </p>
+            <p style={{ color: "#f8fafc", fontSize: "15px", fontWeight: "600", backgroundColor: "#1e293b", padding: "8px 12px", borderRadius: "6px", display: "inline-block", border: "1px solid #38bdf8" }}>
+              পরীক্ষার আগের রাতের সবচেয়ে বড় সঙ্গী: <span style={{ color: "#38bdf8" }}>" Math Note HUB "</span>
+            </p>
           </div>
 
-          <div className="auth-card">
-            <h3>{isResetMode ? "পাসওয়ার্ড রিসেট করুন" : "প্রবেশ করুন"}</h3>
+          <div style={styles.authCard}>
+            <h3 style={{ marginBottom: "20px", color: "#f8fafc", fontSize: "18px", fontWeight: "600" }}>
+              {isResetMode ? "পাসওয়ার্ড রিসেট করুন" : "প্রবেশ করুন"}
+            </h3>
             
             {!isResetMode && (
-              <div className="tab-container">
-                <button onClick={() => setAuthMode("google")} className={`tab ${authMode === "google" ? "active" : ""}`}>Google</button>
-                <button onClick={() => setAuthMode("email")} className={`tab ${authMode === "email" ? "active" : ""}`}>Email</button>
+              <div style={styles.tabContainer}>
+                <button onClick={() => setAuthMode("google")} style={{...styles.tab, ...(authMode === "google" ? styles.activeTab : {})}}>Google</button>
+                <button onClick={() => setAuthMode("email")} style={{...styles.tab, ...(authMode === "email" ? styles.activeTab : {})}}>Email</button>
               </div>
             )}
 
-            {authError && <p className="auth-error-msg">{authError}</p>}
-            {resetMessage && <p className="auth-success-msg">{resetMessage}</p>}
+            {authError && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "10px" }}>{authError}</p>}
+            {resetMessage && <p style={{ color: "#22c55e", fontSize: "13px", marginBottom: "10px" }}>{resetMessage}</p>}
 
             {!isResetMode && authMode === "google" && (
-              <button onClick={handleGoogleLogin} className="google-btn">Continue with Google</button>
+              <button onClick={handleGoogleLogin} style={styles.googleBtn}>Continue with Google</button>
             )}
 
             {!isResetMode && authMode === "email" && (
-              <form onSubmit={handleEmailAuth} className="form-layout">
-                <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required className="form-input" />
-                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required className="form-input" />
+              <form onSubmit={handleEmailAuth} style={styles.form}>
+                <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required style={styles.input} />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required style={styles.input} />
                 {isSignUp && (
-                  <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="form-input" />
+                  <input type="password" placeholder="Retype Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required style={styles.input} />
                 )}
-                <button type="submit" className="submit-btn">{isSignUp ? "Sign Up" : "Log In"}</button>
+                <button type="submit" style={styles.submitBtn}>{isSignUp ? "Sign Up" : "Log In"}</button>
                 
                 {!isSignUp && (
                   <p 
                     onClick={() => { setIsResetMode(true); setAuthError(""); setResetMessage(""); }} 
-                    className="forgot-password-link"
+                    style={{ cursor: "pointer", color: "#f87171", marginTop: "8px", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                   >
                     <KeyRound size={12} /> পাসওয়ার্ড ভুলে গেছেন? (Forgot Password?)
                   </p>
                 )}
 
-                <p onClick={() => setIsSignUp(!isSignUp)} className="auth-toggle-link">
+                <p onClick={() => setIsSignUp(!isSignUp)} style={{ cursor: "pointer", color: "#38bdf8", marginTop: "8px", fontSize: "13px" }}>
                   {isSignUp ? "Account আছে? Log In করুন" : "Account নেই? Sign Up করুন"}
                 </p>
               </form>
@@ -973,8 +981,8 @@ function App() {
 
             {/* PASSWORD RESET FORM */}
             {isResetMode && (
-              <form onSubmit={handleForgotPassword} className="form-layout">
-                <p className="reset-instruction">
+              <form onSubmit={handleForgotPassword} style={styles.form}>
+                <p style={{ color: "#cbd5e1", fontSize: "12px", marginBottom: "5px" }}>
                   আপনার ইমেইল এড্রেসটি দিন। আমরা আপনার ইমেইলে পাসওয়ার্ড রিসেট করার একটি কোড/লিংক পাঠাবো।
                 </p>
                 <input 
@@ -983,14 +991,14 @@ function App() {
                   value={email} 
                   onChange={(e) => setEmail(e.target.value)} 
                   required 
-                  className="form-input" 
+                  style={styles.input} 
                 />
-                <button type="submit" className="submit-btn">
+                <button type="submit" style={styles.submitBtn}>
                   রিসেট লিংক/কোড পাঠান
                 </button>
                 <p 
                   onClick={() => { setIsResetMode(false); setAuthError(""); setResetMessage(""); }} 
-                  className="auth-toggle-link"
+                  style={{ cursor: "pointer", color: "#38bdf8", marginTop: "12px", fontSize: "13px" }}
                 >
                   ← লগইন পেজে ফিরে যান
                 </p>
@@ -999,143 +1007,143 @@ function App() {
           </div>
         </div>
       ) : (
-        <main className="main-feed">
+        <div style={styles.mainFeed}>
           
           {/* USER QUICK BAR */}
-          <div className="user-bar">
-            <div className="user-bar-profile">
+          <div style={styles.userBar}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <img 
                 src={myProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
                 alt="Profile" 
-                className="user-avatar"
+                style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover", border: "1px solid #0284c7" }}
               />
               <div>
-                <span className="user-name">
+                <span style={{ fontWeight: "600", color: "#f8fafc", display: "flex", alignItems: "center", gap: "6px", fontSize: "14px" }}>
                   {myProfile.displayName || user.displayName || user.email}
                   <RoleBadge role={currentUserRole} />
                 </span>
-                <span className="user-rank-info">
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>
                   {isAdmin ? "Website Owner" : `Points: ${myProfile.points} | Rank: ${getUserRank(user.uid, user.email)}`}
                 </span>
               </div>
             </div>
-            <button onClick={handleLogout} className="logout-btn">
+            <button onClick={handleLogout} style={styles.logoutBtn}>
               <LogOut size={14} /> লগ-আউট
             </button>
           </div>
 
-          <div className="notice-banner">
+          <div style={styles.animatedNoticeBanner}>
             <Info size={18} color="#38bdf8" />
-            <span className="notice-banner-text">
+            <span style={styles.animatedNoticeText}>
               ৩ জন মডারেটর প্রয়োজন! যারা ১-৩০ আগস্ট টপ লিডারবোর্ডে থাকবেন তাদের নিয়োগ দেওয়া হবে।
             </span>
           </div>
 
           {/* EDIT PROFILE VIEW */}
           {currentView === "profile" && (
-            <div className="content-card">
-              <h2 className="card-heading">
+            <div style={styles.profileSection}>
+              <h2 style={{ color: "#f8fafc", marginBottom: "20px", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
                 <User size={20} color="#38bdf8" /> প্রোফাইল তথ্য
               </h2>
               
-              <div className="score-summary-box">
-                <div className="score-item">
-                  <span className="score-label">Status / Points</span>
-                  <span className="score-val">{isAdmin ? "Admin" : myProfile.points}</span>
+              <div style={styles.scoreSummaryBox}>
+                <div style={styles.scoreBoxItem}>
+                  <span style={styles.scoreBoxLabel}>Status / Points</span>
+                  <span style={styles.scoreBoxValue}>{isAdmin ? "Admin" : myProfile.points}</span>
                 </div>
-                <div className="score-divider"></div>
-                <div className="score-item">
-                  <span className="score-label">Leaderboard Rank</span>
-                  <span className="score-val">{getUserRank(user.uid, user.email)}</span>
+                <div style={styles.scoreBoxDivider}></div>
+                <div style={styles.scoreBoxItem}>
+                  <span style={styles.scoreBoxLabel}>Leaderboard Rank</span>
+                  <span style={styles.scoreBoxValue}>{getUserRank(user.uid, user.email)}</span>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveProfile} className="form-layout">
-                <div className="avatar-upload-section">
+              <form onSubmit={handleSaveProfile} style={styles.profileForm}>
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
                   <img 
                     src={myProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
                     alt="Preview" 
-                    className="avatar-preview"
+                    style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "2px solid #0284c7", marginBottom: "10px" }}
                   />
-                  <div className="badge-wrapper">
+                  <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginBottom: "10px" }}>
                     <RoleBadge role={currentUserRole} />
                   </div>
                   <div>
-                    <label className="form-label">প্রোফাইল ছবি পরিবর্তন (Max 5MB):</label>
+                    <label style={{ fontSize: "12px", color: "#94a3b8" }}>প্রোফাইল ছবি পরিবর্তন (Max 5MB):</label>
                     <input 
                       type="file" 
                       accept="image/*" 
                       onChange={(e) => setProfilePicFile(e.target.files[0])}
-                      className="file-input-inline"
+                      style={{ marginTop: "6px", color: "#94a3b8", display: "block", margin: "6px auto", fontSize: "12px" }}
                     />
                   </div>
                 </div>
 
-                <div className="input-grid">
+                <div style={styles.inputGrid}>
                   <div>
-                    <label className="form-label">নাম:</label>
-                    <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required className="form-input" />
+                    <label style={styles.label}>নাম:</label>
+                    <input type="text" value={myProfile.displayName} onChange={(e) => setMyProfile({...myProfile, displayName: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">University / College Name:</label>
+                    <label style={styles.label}>University / College Name:</label>
                     <input 
                       type="text" 
                       placeholder="e.g. Kurigram Govt. College" 
                       value={myProfile.instituteName} 
                       onChange={(e) => setMyProfile({...myProfile, instituteName: e.target.value})} 
                       required 
-                      className="form-input" 
+                      style={styles.input} 
                     />
                   </div>
 
                   <div>
-                    <label className="form-label">Department Roll No.:</label>
-                    <input type="text" placeholder="e.g. 240105" value={myProfile.deptRoll} onChange={(e) => setMyProfile({...myProfile, deptRoll: e.target.value})} required className="form-input" />
+                    <label style={styles.label}>Department Roll No.:</label>
+                    <input type="text" placeholder="e.g. 240105" value={myProfile.deptRoll} onChange={(e) => setMyProfile({...myProfile, deptRoll: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">WhatsApp Number:</label>
-                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required className="form-input" />
+                    <label style={styles.label}>WhatsApp Number:</label>
+                    <input type="text" placeholder="+88017xxxxxxxx" value={myProfile.whatsapp} onChange={(e) => setMyProfile({...myProfile, whatsapp: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">Email Address:</label>
-                    <input type="email" value={myProfile.email} onChange={(e) => setMyProfile({...myProfile, email: e.target.value})} required className="form-input" />
+                    <label style={styles.label}>Email Address:</label>
+                    <input type="email" value={myProfile.email} onChange={(e) => setMyProfile({...myProfile, email: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">Facebook Link:</label>
-                    <input type="text" placeholder="https://facebook.com/yourid" value={myProfile.facebook} onChange={(e) => setMyProfile({...myProfile, facebook: e.target.value})} className="form-input" />
+                    <label style={styles.label}>Facebook Link:</label>
+                    <input type="text" placeholder="https://facebook.com/yourid" value={myProfile.facebook} onChange={(e) => setMyProfile({...myProfile, facebook: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">Date of Birth:</label>
-                    <input type="date" value={myProfile.dob} onChange={(e) => setMyProfile({...myProfile, dob: e.target.value})} required className="form-input" />
+                    <label style={styles.label}>Date of Birth:</label>
+                    <input type="date" value={myProfile.dob} onChange={(e) => setMyProfile({...myProfile, dob: e.target.value})} required style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">HSC College Name (Optional):</label>
-                    <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} className="form-input" />
+                    <label style={styles.label}>HSC College Name (Optional):</label>
+                    <input type="text" placeholder="e.g. Kurigram Govt. College" value={myProfile.hscCollege} onChange={(e) => setMyProfile({...myProfile, hscCollege: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">HSC Passing Year (Optional):</label>
-                    <input type="text" placeholder="e.g. 2024" value={myProfile.hscYear} onChange={(e) => setMyProfile({...myProfile, hscYear: e.target.value})} className="form-input" />
+                    <label style={styles.label}>HSC Passing Year (Optional):</label>
+                    <input type="text" placeholder="e.g. 2024" value={myProfile.hscYear} onChange={(e) => setMyProfile({...myProfile, hscYear: e.target.value})} style={styles.input} />
                   </div>
 
                   <div>
-                    <label className="form-label">HSC GPA (Optional):</label>
-                    <input type="text" placeholder="e.g. 5.00" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} className="form-input" />
+                    <label style={styles.label}>HSC GPA (Optional):</label>
+                    <input type="text" placeholder="e.g. 5.00" value={myProfile.hscGpa} onChange={(e) => setMyProfile({...myProfile, hscGpa: e.target.value})} style={styles.input} />
                   </div>
 
-                  <div className="full-width-grid">
-                    <label className="form-label">ঠিকানা / Residence:</label>
-                    <input type="text" placeholder="Kurigram Sadar, Kurigram" value={myProfile.address} onChange={(e) => setMyProfile({...myProfile, address: e.target.value})} required className="form-input" />
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={styles.label}>ঠিকানা / Residence:</label>
+                    <input type="text" placeholder="Kurigram Sadar, Kurigram" value={myProfile.address} onChange={(e) => setMyProfile({...myProfile, address: e.target.value})} required style={styles.input} />
                   </div>
                 </div>
 
-                <button type="submit" disabled={savingProfile} className="submit-btn full-btn">
+                <button type="submit" disabled={savingProfile} style={styles.saveProfileBtn}>
                   {savingProfile ? "সেভ হচ্ছে..." : "প্রোফাইল সেভ করুন"}
                 </button>
               </form>
@@ -1144,25 +1152,25 @@ function App() {
 
           {/* DASHBOARD VIEW */}
           {currentView === "dashboard" && (
-            <div className="dashboard-section">
+            <div style={styles.dashboardSection}>
               
               {isAdmin && pendingDeleteNotes.length > 0 && (
-                <div className="admin-review-box">
-                  <h3 className="review-title">
+                <div style={styles.adminReviewBox}>
+                  <h3 style={{ color: "#f87171", margin: "0 0 12px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
                     <AlertTriangle size={18} /> Admin Review: মডারেটরদের ডিলিট রিকোয়েস্ট ({pendingDeleteNotes.length})
                   </h3>
-                  <div className="review-list">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     {pendingDeleteNotes.map(note => (
-                      <div key={note.id} className="review-item">
+                      <div key={note.id} style={styles.reviewItem}>
                         <div>
-                          <b className="review-file-name">{note.fileName}</b>
-                          <p className="review-file-meta">
-                            বিষয়: {note.subject} | মডারেটর: <span className="highlight-text">{note.deletedByModName}</span>
+                          <b style={{ color: "#f8fafc" }}>{note.fileName}</b>
+                          <p style={{ fontSize: "12px", color: "#94a3b8", margin: "2px 0" }}>
+                            বিষয়: {note.subject} | মডারেটর: <span style={{ color: "#38bdf8" }}>{note.deletedByModName}</span>
                           </p>
                         </div>
-                        <div className="btn-group">
-                          <button onClick={() => handleAdminApproveDelete(note.id)} className="btn btn-success"><CheckCircle size={14} /> কনফার্ম ডিলিট</button>
-                          <button onClick={() => handleAdminCancelDeleteRequest(note.id)} className="btn btn-secondary"><XCircle size={14} /> বাতিল</button>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button onClick={() => handleAdminApproveDelete(note.id)} style={styles.approveBtn}><CheckCircle size={14} /> কনফার্ম ডিলিট</button>
+                          <button onClick={() => handleAdminCancelDeleteRequest(note.id)} style={styles.cancelReviewBtn}><XCircle size={14} /> বাতিল</button>
                         </div>
                       </div>
                     ))}
@@ -1170,49 +1178,56 @@ function App() {
                 </div>
               )}
 
-              <div className="content-card">
-                <h3 className="card-heading">
+              <div style={styles.scoreBoardCard}>
+                <h3 style={{ color: "#f8fafc", margin: "0 0 15px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
                   <Award size={20} color="#38bdf8" /> লিডারবোর্ড (Top Members)
                 </h3>
-                <div className="leaderboard-list">
+                <div style={styles.leaderboardList}>
                   {leaderboardUsers.map((u, index) => {
                     const uRole = getUserRole(u.email, u.uid);
                     const isUserAdmin = uRole === "Admin";
 
                     return (
-                      <div key={u.id} className={`leader-item ${isUserAdmin ? "admin-item" : ""}`}>
-                        <div className="leader-info">
-                          <span className={`rank-tag ${isUserAdmin ? "admin-rank" : ""}`}>
+                      <div key={u.id} style={{ 
+                        ...styles.leaderItem,
+                        backgroundColor: isUserAdmin ? "rgba(56, 189, 248, 0.08)" : "#0f172a",
+                        border: isUserAdmin ? "1px solid rgba(56, 189, 248, 0.3)" : "none"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={{ fontWeight: "600", fontSize: "13px", width: "32px", color: isUserAdmin ? "#38bdf8" : "#94a3b8" }}>
                             {isUserAdmin ? <Crown size={18} color="#38bdf8" /> : `#${index - admins.length + 1}`}
                           </span>
-                          <img src={u.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt="u" className="small-avatar" />
+                          <img src={u.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} alt="u" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }} />
                           <span 
                             onClick={() => setViewingProfile(u)} 
-                            className="clickable-user"
+                            style={{ color: "#f8fafc", cursor: "pointer", fontWeight: "500", display: "flex", alignItems: "center", gap: "6px" }}
                           >
                             {u.displayName || "User"}
                             <RoleBadge role={uRole} />
                           </span>
                         </div>
-                        <div className="leader-actions">
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                           {!isUserAdmin && (
-                            <span className="pts-badge">{u.points || 0} Pts</span>
+                            <span style={styles.scoreBadge}>{u.points || 0} Pts</span>
                           )}
                           {isAdmin && !isUserAdmin && (
-                            <div className="btn-group">
-                              <button onClick={() => handleToggleModerator(u)} className="mod-toggle-btn">
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button 
+                                onClick={() => handleToggleModerator(u)}
+                                style={styles.makeModBtn}
+                              >
                                 {uRole === "Moderator" ? "Remove Mod" : "Make Mod"}
                               </button>
                               <button 
                                 onClick={() => handleToggleBanUser(u)}
-                                className={`ban-toggle-btn ${u.isBanned ? "unban" : "ban"}`}
+                                style={{ ...styles.banBtn, backgroundColor: u.isBanned ? "#16a34a" : "#dc2626" }}
                                 title={u.isBanned ? "Unban User" : "Ban User"}
                               >
                                 {u.isBanned ? "Unban" : <Ban size={14} />}
                               </button>
                               <button 
                                 onClick={() => handlePermanentlyRemoveUser(u)}
-                                className="delete-user-btn"
+                                style={styles.removeUserBtn}
                                 title="Permanently Delete User"
                               >
                                 <UserX size={14} />
@@ -1226,30 +1241,34 @@ function App() {
                 </div>
               </div>
 
-              <div className="content-card">
-                <h3 className="card-heading">
+              <div style={styles.searchSection}>
+                <h3 style={{ color: "#f8fafc", marginBottom: "12px", fontSize: "15px", fontWeight: "600" }}>
                   সকল রেজিস্টার্ড মেম্বার
                 </h3>
-                <div className="user-chips-grid">
+                <div style={styles.userListGrid}>
                   <button 
                     onClick={() => setSelectedDashboardUid(null)}
-                    className={`user-chip ${!selectedDashboardUid ? "active" : ""}`}
+                    style={{ ...styles.userCardBtn, backgroundColor: !selectedDashboardUid ? "#0284c7" : "#1e293b" }}
                   >
                     সকল ইউজার
                   </button>
                   {visibleUsers.map(u => {
                     return (
-                      <div key={u.id} className="user-chip-wrapper">
+                      <div key={u.id} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                         <button 
                           onClick={() => setSelectedDashboardUid(u.uid)}
-                          className={`user-chip ${selectedDashboardUid === u.uid ? "active" : ""} ${u.isBanned ? "banned" : ""}`}
+                          style={{ 
+                            ...styles.userCardBtn, 
+                            backgroundColor: selectedDashboardUid === u.uid ? "#0284c7" : "#1e293b",
+                            borderColor: u.isBanned ? "#ef4444" : "rgba(255,255,255,0.1)"
+                          }}
                         >
                           {u.displayName || u.email.split('@')[0]}
-                          {u.isBanned && <span className="banned-tag">(Banned)</span>}
+                          {u.isBanned && <span style={{ color: "#ef4444", marginLeft: "4px", fontSize: "10px" }}>(Banned)</span>}
                         </button>
                         <button 
                           onClick={() => setViewingProfile(u)}
-                          className="info-icon-btn"
+                          style={styles.infoIconBtn}
                         >
                           <Info size={14} />
                         </button>
@@ -1259,11 +1278,11 @@ function App() {
                 </div>
               </div>
 
-              <h3 className="section-title">
+              <h3 style={{ color: "#f8fafc", margin: "25px 0 15px 0", fontSize: "16px" }}>
                 {selectedDashboardUid ? "নির্বাচিত সদস্যের ফাইলসমূহ" : "সকল সংগৃহীত ফাইলসমূহ"} ({dashboardFilteredNotes.length})
               </h3>
 
-              <div className="notes-grid">
+              <div style={styles.notesGrid}>
                 {dashboardFilteredNotes.map((n) => (
                   <NoteCardItem 
                     key={n.id} 
@@ -1293,12 +1312,12 @@ function App() {
           {/* HOME VIEW */}
           {currentView === "home" && (
             <>
-              <div className="content-card">
-                <h3 className="card-heading">
+              <div style={styles.searchSection}>
+                <h3 style={{ color: "#f8fafc", marginBottom: "12px", fontSize: "15px", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Search size={16} color="#38bdf8" /> বিষয় ও তারিখ দিয়ে ফিল্টার করুন
                 </h3>
-                <div className="filter-grid">
-                  <div className="search-input-wrapper">
+                <div style={styles.filterGrid}>
+                  <div style={{ position: "relative", flex: 2, minWidth: "220px" }}>
                     <input 
                       type="text" 
                       placeholder="বইয়ের নাম বা বিষয় লিখে সার্চ করুন..." 
@@ -1309,14 +1328,14 @@ function App() {
                         setShowSuggestions(true); 
                       }}
                       onFocus={() => setShowSuggestions(true)}
-                      className="form-input"
+                      style={styles.searchInput}
                     />
                     {showSuggestions && searchQuery.trim() !== "" && (
-                      <div className="suggestion-box">
+                      <div style={styles.suggestionBox}>
                         {suggestedBooks.map((book, idx) => (
                           <div 
                             key={idx} 
-                            className="suggestion-item"
+                            style={styles.suggestionItem}
                             onClick={() => {
                               setSelectedSubjectFilter(book);
                               setSearchQuery(book);
@@ -1330,47 +1349,47 @@ function App() {
                     )}
                   </div>
 
-                  <div className="date-input-wrapper">
+                  <div style={{ flex: 1, minWidth: "150px" }}>
                     <input 
                       type="date" 
                       value={selectedDateFilter}
                       onChange={(e) => setSelectedDateFilter(e.target.value)}
-                      className="form-input"
+                      style={styles.dateFilterInput}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="content-card">
-                <h3 className="card-heading">
+              <div style={styles.uploadCard}>
+                <h3 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "16px", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px" }}>
                   <UploadCloud size={20} color="#38bdf8" /> নতুন PDF / ছবি শেয়ার করুন (+100 Points)
                 </h3>
-                <form onSubmit={handleUpload} className="upload-form">
-                  <div className="input-grid">
-                    <select value={subject} onChange={(e) => setSubject(e.target.value)} className="form-input" required>
+                <form onSubmit={handleUpload} style={styles.uploadForm}>
+                  <div style={styles.inputGroup}>
+                    <select value={subject} onChange={(e) => setSubject(e.target.value)} style={styles.input} required>
                       {BOOK_LIST.map((item, index) => (
                         <option key={index} value={item} style={{ backgroundColor: "#0f172a", color: "#fff" }}>{item}</option>
                       ))}
                     </select>
 
-                    <input type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} required className="form-input" />
+                    <input type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} required style={styles.input} />
                   </div>
 
-                  <input type="text" placeholder="নোট সংক্রান্ত অতিরিক্ত তথ্য (PDF Info)" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} className="form-input full-width-input" />
+                  <input type="text" placeholder="নোট সংক্রান্ত অতিরিক্ত তথ্য (PDF Info)" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} style={{ ...styles.input, marginTop: "12px" }} />
 
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required className="file-select-input" />
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} />
                   
-                  <button type="submit" disabled={uploading || isCurrentUserBanned} className={`submit-btn full-btn ${isCurrentUserBanned ? "disabled" : ""}`}>
+                  <button type="submit" disabled={uploading || isCurrentUserBanned} style={{...styles.uploadBtn, opacity: isCurrentUserBanned ? 0.5 : 1}}>
                     {uploading ? "আপলোড হচ্ছে..." : "নোট আপলোড করুন"}
                   </button>
                 </form>
               </div>
 
-              <h2 className="section-title">
+              <h2 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "18px", fontWeight: "600" }}>
                 সংগৃহীত নোটস ({filteredNotes.length})
               </h2>
               
-              <div className="notes-grid">
+              <div style={styles.notesGrid}>
                 {filteredNotes.map((n) => (
                   <NoteCardItem 
                     key={n.id} 
@@ -1396,34 +1415,34 @@ function App() {
               </div>
             </>
           )}
-        </main>
+        </div>
       )}
 
       {/* ACTIVITY LOGS MODAL */}
       {showLogsModal && (
-        <div className="modal-overlay">
-          <div className="modal-card wide">
-            <button onClick={() => setShowLogsModal(false)} className="close-modal-btn"><XCircle size={18} /></button>
-            <h3 className="modal-title">
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: "550px" }}>
+            <button onClick={() => setShowLogsModal(false)} style={styles.closeModalBtn}><XCircle size={18} /></button>
+            <h3 style={{ color: "#38bdf8", marginBottom: "15px", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
               <Activity size={18} /> Activity Logs (সর্বশেষ কার্যক্রম)
             </h3>
 
-            <div className="activity-log-list">
+            <div style={styles.activityLogList}>
               {activityLogs.length === 0 ? (
-                <p className="empty-msg">কোনো অ্যাক্টিভিটি পাওয়া যায়নি</p>
+                <p style={{ color: "#64748b", textAlign: "center", fontSize: "13px" }}>কোনো অ্যাক্টিভিটি পাওয়া যায়নি</p>
               ) : (
                 activityLogs.map(log => (
-                  <div key={log.id} className="activity-item">
-                    <div className="activity-item-header">
-                      <span className="user-name">
+                  <div key={log.id} style={styles.activityItem}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontWeight: "600", color: "#f8fafc", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
                         {log.userName} <RoleBadge role={log.userRole} />
                       </span>
-                      <span className="log-time">
+                      <span style={{ fontSize: "10px", color: "#64748b" }}>
                         {log.createdAt?.toDate ? log.createdAt.toDate().toLocaleString() : "Just now"}
                       </span>
                     </div>
-                    <div className="log-action">{log.action}</div>
-                    <div className="log-details">{log.details}</div>
+                    <div style={{ fontSize: "12px", color: "#38bdf8", fontWeight: "500" }}>{log.action}</div>
+                    <div style={{ fontSize: "12px", color: "#cbd5e1", marginTop: "2px" }}>{log.details}</div>
                   </div>
                 ))
               )}
@@ -1434,33 +1453,33 @@ function App() {
 
       {/* EDIT NOTE MODAL */}
       {editingNote && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <button onClick={() => setEditingNote(null)} className="close-modal-btn"><XCircle size={18} /></button>
-            <h3 className="modal-title">ফাইলের নাম ও তথ্য পরিবর্তন</h3>
-            <form onSubmit={handleSaveNoteEdit} className="form-layout">
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <button onClick={() => setEditingNote(null)} style={styles.closeModalBtn}><XCircle size={18} /></button>
+            <h3 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "16px" }}>ফাইলের নাম ও তথ্য পরিবর্তন</h3>
+            <form onSubmit={handleSaveNoteEdit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label className="form-label">ফাইলের নাম (File Name):</label>
+                <label style={styles.label}>ফাইলের নাম (File Name):</label>
                 <input 
                   type="text" 
                   value={editFileName} 
                   onChange={(e) => setEditFileName(e.target.value)} 
                   required 
-                  className="form-input" 
+                  style={styles.input} 
                 />
               </div>
 
               <div>
-                <label className="form-label">PDF/নোট তথ্য (Info):</label>
+                <label style={styles.label}>PDF/নোট তথ্য (Info):</label>
                 <input 
                   type="text" 
                   value={editPdfInfo} 
                   onChange={(e) => setEditPdfInfo(e.target.value)} 
-                  className="form-input" 
+                  style={styles.input} 
                 />
               </div>
 
-              <button type="submit" className="submit-btn full-btn">সেভ করুন</button>
+              <button type="submit" style={styles.saveProfileBtn}>সেভ করুন</button>
             </form>
           </div>
         </div>
@@ -1468,34 +1487,34 @@ function App() {
 
       {/* PUBLIC PROFILE VIEW MODAL */}
       {viewingProfile && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <button onClick={() => setViewingProfile(null)} className="close-modal-btn"><XCircle size={18} /></button>
-            <div className="profile-modal-header">
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <button onClick={() => setViewingProfile(null)} style={styles.closeModalBtn}><XCircle size={18} /></button>
+            <div style={{ textAlign: "center", marginBottom: "15px" }}>
               <img 
                 src={viewingProfile.photoUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"} 
                 alt="Profile" 
-                className="modal-avatar"
+                style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover", border: "2px solid #0284c7" }}
               />
-              <h3 className="profile-modal-title">
+              <h3 style={{ margin: "8px 0 4px 0", color: "#f8fafc", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                 {viewingProfile.displayName || "User Profile"}
                 <RoleBadge role={getUserRole(viewingProfile.email, viewingProfile.uid)} />
               </h3>
 
-              <div className="modal-score-bar">
+              <div style={styles.modalScoreBar}>
                 {getUserRole(viewingProfile.email, viewingProfile.uid) === "Admin" ? (
-                  <span className="badge badge-admin">Website Owner</span>
+                  <span style={styles.modalBadgeAdmin}>Website Owner</span>
                 ) : (
                   <>
-                    <span className="badge badge-success">Points: {viewingProfile.points || 0}</span>
-                    <span className="badge badge-primary">Rank: {getUserRank(viewingProfile.uid, viewingProfile.email)}</span>
+                    <span style={styles.modalBadge}>Points: {viewingProfile.points || 0}</span>
+                    <span style={styles.modalBadgeRank}>Rank: {getUserRank(viewingProfile.uid, viewingProfile.email)}</span>
                   </>
                 )}
               </div>
             </div>
 
-            <div className="profile-details-list">
-              <p>
+            <div style={styles.profileDetailsList}>
+              <p style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <Building size={14} color="#38bdf8" /> <b>Institution:</b> {viewingProfile.instituteName || "N/A"}
               </p>
               <p><b>Dept. Roll:</b> {viewingProfile.deptRoll || "N/A"}</p>
@@ -1506,23 +1525,23 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              <p className="hsc-section-title">
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
-              <p className="indented"><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
-              <p className="indented"><b>Year:</b> {viewingProfile.hscYear || "N/A"}</p>
-              <p className="indented"><b>GPA:</b> {viewingProfile.hscGpa || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>Year:</b> {viewingProfile.hscYear || "N/A"}</p>
+              <p style={{ paddingLeft: "8px" }}><b>GPA:</b> {viewingProfile.hscGpa || "N/A"}</p>
 
               {viewingProfile.facebook && (
-                <p><b>Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" className="external-link">Profile Link <ExternalLink size={12} /></a></p>
+                <p><b>Facebook:</b> <a href={viewingProfile.facebook} target="_blank" rel="noreferrer" style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "4px" }}>Profile Link <ExternalLink size={12} /></a></p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      <footer className="app-footer">
-        <p>© 2026 Math Note HUB | Developed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer">Anondo</a></p>
+      <footer style={styles.footer}>
+        <p>© 2026 Math Note HUB | Developed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8"}}>Anondo</a></p>
       </footer>
     </div>
   );
@@ -1539,27 +1558,27 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
   const canEdit = isOwner || isModOrAdmin;
 
   return (
-    <div className="note-card">
+    <div style={styles.noteCard}>
       <div>
-        <div className="card-header">
-          <span className="subject-tag">{note.subject}</span>
-          <span className="date-tag"><Calendar size={12} /> {note.date}</span>
+        <div style={styles.cardHeader}>
+          <span style={styles.subjectTag}>{note.subject}</span>
+          <span style={styles.dateTag}><Calendar size={12} /> {note.date}</span>
         </div>
 
-        <h4 className="file-name">{note.fileName}</h4>
-        {note.pdfInfo && <p className="pdf-info-tag"><Info size={12} /> {note.pdfInfo}</p>}
+        <h4 style={styles.fileName}>{note.fileName}</h4>
+        {note.pdfInfo && <p style={styles.pdfInfoTag}><Info size={12} /> {note.pdfInfo}</p>}
         
         {note.isPendingDelete && (
-          <div className="pending-alert-tag">
+          <div style={styles.pendingAlertTag}>
             <AlertTriangle size={12} /> ডিলিট পেন্ডিং (মডারেটর: {note.deletedByModName})
           </div>
         )}
 
-        <p className="uploader-text">
+        <p style={styles.uploaderText}>
           Uploaded by:{" "}
           <b 
             onClick={() => uploaderProfile && setViewingProfile(uploaderProfile)} 
-            className="uploader-link"
+            style={{ color: "#38bdf8", cursor: "pointer", fontWeight: "500" }}
           >
             {note.uploadedBy}
           </b>
@@ -1567,51 +1586,56 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
         </p>
       </div>
 
-      <div className="card-actions">
-        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-view">দেখুন</a>
-        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} className="btn btn-download"><Download size={13} /></button>
-        <button onClick={() => copyLink(note.fileUrl)} className="btn btn-copy"><Copy size={13} /></button>
+      <div style={styles.cardActions}>
+        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>দেখুন</a>
+        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}><Download size={13} /></button>
+        <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}><Copy size={13} /></button>
         
         {canEdit && (
-          <button onClick={() => handleOpenEditModal(note)} className="btn btn-edit" title="Edit Note">
+          <button onClick={() => handleOpenEditModal(note)} style={styles.editBtn} title="Edit Note">
             <Edit size={13} />
           </button>
         )}
 
         {isModOrAdmin && (
-          <button onClick={() => handleDelete(note)} className="btn btn-delete" title={isAdmin ? "Delete Note" : "Request Delete"}>
+          <button onClick={() => handleDelete(note)} style={styles.deleteBtn} title={isAdmin ? "Delete Note" : "Request Delete"}>
             <Trash2 size={13} />
           </button>
         )}
       </div>
 
-      <div className="interactive-box">
-        <div className="reaction-bar">
+      <div style={styles.interactiveBox}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
           <button 
             onClick={() => handleReactionToggle(note, "love")} 
             disabled={isCurrentUserBanned}
-            className={`reaction-btn ${hasLoved ? "loved" : ""}`}
+            style={{ 
+              ...styles.reactionStyleBtn, 
+              backgroundColor: hasLoved ? "#ef4444" : "#1e293b",
+              color: hasLoved ? "#fff" : "#94a3b8",
+              border: hasLoved ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.1)"
+            }}
           >
             <Heart size={14} fill={hasLoved ? "#fff" : "none"} /> {note.loves?.length || 0}
           </button>
 
-          <span className="comment-count">
+          <span style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px" }}>
             <MessageCircle size={13} /> {note.comments?.length || 0}
           </span>
         </div>
 
-        <div className="comment-list">
+        <div style={styles.commentList}>
           {note.comments?.map((c) => {
             const commentUserRole = getUserRole(c.userEmail, c.userUid);
             return (
-              <div key={c.id || Math.random()} className="single-comment">
-                <div className="comment-body">
+              <div key={c.id || Math.random()} style={styles.singleComment}>
+                <div style={{ flex: 1 }}>
                   <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
                 </div>
                 {isModOrAdmin && (
                   <button 
                     onClick={() => handleDeleteComment(note.id, c)} 
-                    className="delete-comment-btn"
+                    style={styles.deleteCommentBtn}
                   >
                     <Trash2 size={11} color="#f87171" />
                   </button>
@@ -1622,20 +1646,161 @@ function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUs
         </div>
 
         {!isCurrentUserBanned && (
-          <form onSubmit={(e) => handleAddComment(e, note)} className="comment-form">
+          <form onSubmit={(e) => handleAddComment(e, note)} style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
             <input 
               type="text" 
               placeholder="কমেন্ট করুন..." 
               value={commentText[note.id] || ""} 
               onChange={(e) => setCommentText({ ...commentText, [note.id]: e.target.value })}
-              className="comment-input"
+              style={styles.commentInput}
             />
-            <button type="submit" className="send-comment-btn"><Send size={12} /></button>
+            <button type="submit" style={styles.sendCommentBtn}><Send size={12} /></button>
           </form>
         )}
       </div>
     </div>
   );
 }
+
+// STYLES
+const styles = {
+  container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc" },
+  header: { backgroundColor: "#0f172a", padding: "14px 6%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "10px" },
+  logo: { fontSize: "20px", color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
+  subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
+  branding: { fontSize: "12px", color: "#64748b" },
+  brandLink: { color: "#38bdf8", textDecoration: "none", fontWeight: "600" },
+  navTabs: { display: "flex", gap: "6px", alignItems: "center" },
+  navBtn: { padding: "7px 14px", border: "1px solid transparent", background: "transparent", color: "#94a3b8", borderRadius: "6px", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "0.2s" },
+  activeNavBtn: { backgroundColor: "#1e293b", color: "#38bdf8", border: "1px solid #334155" },
+
+  logsNavBtn: { padding: "7px 12px", backgroundColor: "rgba(139, 92, 246, 0.15)", color: "#c084fc", border: "1px solid rgba(139, 92, 246, 0.3)", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "5px", fontWeight: "500" },
+
+  notifIconBtn: { backgroundColor: "#1e293b", color: "#cbd5e1", border: "1px solid #334155", padding: "7px 10px", borderRadius: "6px", cursor: "pointer", position: "relative", display: "flex", alignItems: "center" },
+  notifBadge: { position: "absolute", top: "-4px", right: "-4px", backgroundColor: "#ef4444", color: "#fff", borderRadius: "50%", padding: "1px 5px", fontSize: "10px", fontWeight: "bold" },
+  notifDropdown: { position: "absolute", top: "110%", right: 0, width: "290px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.5)", zIndex: 50 },
+  notifHeader: { padding: "10px 12px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "#f8fafc" },
+  notifList: { maxHeight: "250px", overflowY: "auto" },
+  notifItem: { padding: "10px 12px", borderBottom: "1px solid #1e293b", backgroundColor: "#090d16", transition: "background 0.2s" },
+
+  bannedBanner: { backgroundColor: "rgba(220, 38, 38, 0.15)", borderBottom: "1px solid #dc2626", color: "#f87171", padding: "10px 20px", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
+
+  heroSection: { maxWidth: "480px", margin: "40px auto", padding: "0 20px" },
+  welcomeBox: { textAlign: "center", marginBottom: "25px" },
+  authCard: { backgroundColor: "#0f172a", padding: "28px", borderRadius: "12px", border: "1px solid #1e293b", textAlign: "center" },
+  tabContainer: { display: "flex", justifyContent: "center", marginBottom: "20px", gap: "8px" },
+  tab: { padding: "8px 20px", border: "none", background: "#1e293b", color: "#94a3b8", borderRadius: "6px", cursor: "pointer", fontSize: "13px" },
+  activeTab: { background: "#0284c7", color: "#fff", fontWeight: "500" },
+  googleBtn: { width: "100%", padding: "11px", backgroundColor: "#0284c7", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
+  form: { display: "flex", flexDirection: "column", gap: "12px" },
+  input: { padding: "10px 12px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", width: "100%", boxSizing: "border-box" },
+  label: { display: "block", fontSize: "12px", color: "#94a3b8", marginBottom: "4px" },
+  submitBtn: { padding: "11px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
+  
+  mainFeed: { maxWidth: "860px", margin: "25px auto", padding: "0 16px" },
+  userBar: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "12px 18px", borderRadius: "10px", border: "1px solid #1e293b", marginBottom: "16px" },
+  
+  animatedNoticeBanner: {
+    backgroundColor: "#0f172a",
+    border: "1px solid #1e293b",
+    borderLeft: "4px solid #38bdf8",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  },
+  animatedNoticeText: { color: "#cbd5e1", fontSize: "13px" },
+
+  studentBadge: { backgroundColor: "#1e293b", color: "#94a3b8", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "500" },
+  adminBadge: { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(239, 68, 68, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
+  modBadge: { backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", border: "1px solid rgba(59, 130, 246, 0.4)", display: "inline-flex", alignItems: "center", gap: "3px" },
+
+  logoutBtn: { backgroundColor: "transparent", color: "#f87171", border: "1px solid rgba(248, 113, 113, 0.2)", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "5px" },
+
+  profileSection: { backgroundColor: "#0f172a", padding: "24px", borderRadius: "12px", border: "1px solid #1e293b", marginBottom: "25px" },
+  scoreSummaryBox: { display: "flex", justifyContent: "space-around", alignItems: "center", backgroundColor: "#090d16", padding: "16px", borderRadius: "8px", marginBottom: "20px", border: "1px solid #1e293b" },
+  scoreBoxItem: { textAlign: "center", display: "flex", flexDirection: "column" },
+  scoreBoxLabel: { fontSize: "12px", color: "#64748b" },
+  scoreBoxValue: { fontSize: "18px", fontWeight: "600", color: "#38bdf8", marginTop: "2px" },
+  scoreBoxDivider: { width: "1px", height: "30px", backgroundColor: "#1e293b" },
+
+  profileForm: { display: "flex", flexDirection: "column", gap: "15px" },
+  inputGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" },
+  saveProfileBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px", marginTop: "10px" },
+
+  adminReviewBox: { backgroundColor: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.3)", padding: "16px", borderRadius: "10px", marginBottom: "20px" },
+  reviewItem: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "10px 14px", borderRadius: "8px", flexWrap: "wrap", gap: "8px" },
+  approveBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" },
+  cancelReviewBtn: { backgroundColor: "#334155", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" },
+
+  scoreBoardCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #1e293b" },
+  leaderboardList: { display: "flex", flexDirection: "column", gap: "6px" },
+  leaderItem: { display: "flex", justifyContent: "space-between", padding: "10px 14px", borderRadius: "8px", fontSize: "13px", alignItems: "center", flexWrap: "wrap", gap: "8px" },
+  scoreBadge: { color: "#38bdf8", fontWeight: "600", fontSize: "12px" },
+  makeModBtn: { backgroundColor: "rgba(139, 92, 246, 0.2)", color: "#c084fc", border: "1px solid rgba(139, 92, 246, 0.4)", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", cursor: "pointer" },
+  banBtn: { color: "#fff", border: "none", padding: "5px 8px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", display: "flex", alignItems: "center" },
+  removeUserBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "5px 8px", borderRadius: "4px", cursor: "pointer", fontSize: "11px", display: "flex", alignItems: "center" },
+
+  userListGrid: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" },
+  userCardBtn: { border: "1px solid #1e293b", color: "#cbd5e1", padding: "7px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" },
+  infoIconBtn: { backgroundColor: "#1e293b", color: "#94a3b8", border: "none", padding: "6px 8px", borderRadius: "6px", cursor: "pointer" },
+
+  dashboardSection: { marginBottom: "30px" },
+  searchSection: { backgroundColor: "#0f172a", padding: "18px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #1e293b" },
+  filterGrid: { display: "flex", gap: "10px", flexWrap: "wrap" },
+  searchInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
+  dateFilterInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
+  suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", zIndex: 10, maxHeight: "150px", overflowY: "auto" },
+  suggestionItem: { padding: "10px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1e293b" },
+
+  uploadCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", marginBottom: "25px", border: "1px solid #1e293b" },
+  uploadForm: { display: "flex", flexDirection: "column" },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "10px" },
+  uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
+  
+  notesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "16px" },
+  noteCard: { backgroundColor: "#0f172a", padding: "16px", borderRadius: "10px", border: "1px solid #1e293b", display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
+  subjectTag: { color: "#38bdf8", fontSize: "12px", fontWeight: "500" },
+  dateTag: { color: "#64748b", fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" },
+  fileName: { fontSize: "14px", color: "#f8fafc", margin: "4px 0 8px 0", fontWeight: "500" },
+  pdfInfoTag: { color: "#94a3b8", fontSize: "12px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px" },
+  pendingAlertTag: { color: "#f87171", fontSize: "11px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px" },
+  uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" },
+  
+  cardActions: { display: "flex", gap: "6px", marginBottom: "12px" },
+  viewBtn: { flex: "1", backgroundColor: "#1e293b", color: "#38bdf8", textDecoration: "none", textAlign: "center", padding: "6px", borderRadius: "6px", fontSize: "12px", border: "1px solid #334155" },
+  downloadBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
+  copyBtn: { backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
+  editBtn: { backgroundColor: "#1e293b", color: "#facc15", border: "1px solid #334155", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
+  deleteBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "6px 10px", borderRadius: "6px", cursor: "pointer" },
+
+  interactiveBox: { borderTop: "1px solid #1e293b", paddingTop: "10px" },
+  reactionStyleBtn: { padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" },
+  commentList: { maxHeight: "90px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#090d16", padding: "8px", borderRadius: "6px", marginBottom: "8px" },
+  singleComment: { fontSize: "11px", color: "#cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" },
+  deleteCommentBtn: { background: "none", border: "none", cursor: "pointer" },
+  commentInput: { flex: 1, padding: "6px 10px", borderRadius: "4px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "12px" },
+  sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", cursor: "pointer" },
+
+  modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
+  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", maxWidth: "380px", width: "100%", position: "relative", border: "1px solid #1e293b" },
+  closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" },
+  modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px" },
+  modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
+  modalBadgeAdmin: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", border: "1px solid rgba(56, 189, 248, 0.3)" },
+  modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
+  profileDetailsList: { backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column", gap: "8px", color: "#cbd5e1" },
+
+  activityLogList: { maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" },
+  activityItem: { backgroundColor: "#090d16", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" },
+
+  waCopyBtn: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" },
+  copyToast: { position: "absolute", top: "-28px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", whiteSpace: "nowrap" },
+
+  footer: { textAlign: "center", padding: "20px 15px", backgroundColor: "#0f172a", borderTop: "1px solid #1e293b", fontSize: "12px", color: "#64748b" }
+};
 
 export default App;
