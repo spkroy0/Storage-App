@@ -98,6 +98,7 @@ function RoleBadge({ role }) {
 
 function App() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // ১. লোডিং স্টেট যোগ করা হয়েছে (রিফ্রেশ ইস্যু ফিক্স)
   const [currentView, setCurrentView] = useState("home"); // 'home', 'dashboard', 'profile'
   
   // App Data States
@@ -246,6 +247,7 @@ function App() {
           email: currentUser.email,
         }, { merge: true });
       }
+      setLoading(false); // ২. Auth অবস্থা চেক শেষ হলে লোডিং বন্ধ হবে
     });
 
     const notesQuery = query(collection(db, "notes"), orderBy("createdAt", "desc"));
@@ -827,6 +829,15 @@ function App() {
   const pendingDeleteNotes = visibleNotes.filter(n => n.isPendingDelete);
 
   const userNotifications = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid);
+
+  // ৩. লোডিং চলাকালীন এই স্ক্রিনটি দেখাবে যাতে লগআউট না হয়ে যায়
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#090d16", color: "#38bdf8", fontFamily: "sans-serif" }}>
+        <h3>লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...</h3>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -1516,7 +1527,7 @@ function App() {
               <p><b>Date of Birth:</b> {viewingProfile.dob || "N/A"}</p>
               <p><b>Address:</b> {viewingProfile.address || "N/A"}</p>
 
-              <p style={{ display: "flex", alignItems: "center", gap: "4px", color: "#38bdf8", marginTop: "4px", fontWeight: "600" }}>
+              <p style={{ display: "flex", alignItems: "center", gap: "4px", color="#38bdf8", marginTop: "4px", fontWeight: "600" }}>
                 <GraduationCap size={14} /> HSC Information:
               </p>
               <p style={{ paddingLeft: "8px" }}><b>College:</b> {viewingProfile.hscCollege || "N/A"}</p>
