@@ -60,7 +60,7 @@ const BOOK_LIST = [
   "কমপ্লেক্স অ্যানালিসিস (Complex Analysis) – কোড: ২৩৩৭০৭",
   "ডিফারেনশিয়াল জিওমেট্রি (Differential Geometry) – কোড: ২৩৩৭০৯",
   "মেকানিক্স (Mechanics) – কোড: ২৩3৭১১",
-  "লিনিয়ার প্রোগ্রামিং (Linear Programming) – কোড: ২৩৩৭১৩",
+  "লিনিয়ার প্রোগ্রামিং (Linear Programming) – কোড: ২৩3৭১৩",
   "ভাইভা-ভেসিলি / মৌখিক পরীক্ষা (Viva-Voce) – কোড: ২৩৩৭২০",
   "থিওরি অব নাম্বারস (Theory of Numbers) – কোড: ২৪৩৭০১",
   "টপোলজি অ্যান্ড ফাংশনাল অ্যানালিসিস (Topology & Functional Analysis) – কোড: ২৪৩৭০৩",
@@ -118,6 +118,138 @@ function RoleBadge({ role }) {
     return <span style={styles.modBadge}><Shield size={11} /> Moderator</span>;
   }
   return <span style={styles.studentBadge}>Student</span>;
+}
+
+function NoteCardItem({ 
+  note, 
+  user, 
+  allUsers, 
+  isModOrAdmin, 
+  isAdmin, 
+  isCurrentUserBanned, 
+  handleReactionToggle, 
+  handleAddComment, 
+  handleDeleteComment, 
+  commentText, 
+  setCommentText, 
+  handleDownload, 
+  copyLink, 
+  handleDelete, 
+  handleOpenEditModal, 
+  setViewingProfile, 
+  getUserRole 
+}) {
+  const hasLoved = note.loves?.includes(user?.uid);
+
+  const uploaderProfile = allUsers.find(u => u.uid === note.uploaderUid);
+  const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email, note.uploaderUid);
+
+  const isOwner = user && note.uploaderUid === user.uid;
+  const canEdit = isOwner || isModOrAdmin;
+
+  return (
+    <div style={styles.noteCard}>
+      <div>
+        <div style={styles.cardHeader}>
+          <span style={styles.subjectTag}>{note.subject}</span>
+          <span style={styles.dateTag}><Calendar size={12} /> {note.date}</span>
+        </div>
+
+        <h4 style={styles.fileName}>{note.fileName}</h4>
+        {note.pdfInfo && <p style={styles.pdfInfoTag}><Info size={12} /> {note.pdfInfo}</p>}
+        
+        {note.isPendingDelete && (
+          <div style={styles.pendingAlertTag}>
+            <AlertTriangle size={12} /> ডিলিট পেন্ডিং (মডারেটর: {note.deletedByModName})
+          </div>
+        )}
+
+        <p style={styles.uploaderText}>
+          Uploaded by:{" "}
+          <b 
+            onClick={() => uploaderProfile && setViewingProfile(uploaderProfile)} 
+            style={{ color: "#38bdf8", cursor: "pointer", fontWeight: "500" }}
+          >
+            {note.uploadedBy}
+          </b>
+          {" "}<RoleBadge role={uploaderRole} />
+        </p>
+      </div>
+
+      <div style={styles.cardActions}>
+        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>দেখুন</a>
+        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}><Download size={13} /></button>
+        <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}><Copy size={13} /></button>
+        
+        {canEdit && (
+          <button onClick={() => handleOpenEditModal(note)} style={styles.editBtn} title="Edit Note">
+            <Edit size={13} />
+          </button>
+        )}
+
+        {isModOrAdmin && (
+          <button onClick={() => handleDelete(note)} style={styles.deleteBtn} title={isAdmin ? "Delete Note" : "Request Delete"}>
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+
+      <div style={styles.interactiveBox}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+          <button 
+            onClick={() => handleReactionToggle(note, "love")} 
+            disabled={isCurrentUserBanned}
+            style={{ 
+              ...styles.reactionStyleBtn, 
+              backgroundColor: hasLoved ? "#ef4444" : "#1e293b",
+              color: hasLoved ? "#fff" : "#94a3b8",
+              border: hasLoved ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.1)"
+            }}
+          >
+            <Heart size={14} fill={hasLoved ? "#fff" : "none"} /> {note.loves?.length || 0}
+          </button>
+
+          <span style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px" }}>
+            <MessageCircle size={13} /> {note.comments?.length || 0}
+          </span>
+        </div>
+
+        <div style={styles.commentList}>
+          {note.comments?.map((c) => {
+            const commentUserRole = getUserRole(c.userEmail, c.userUid);
+            return (
+              <div key={c.id || Math.random()} style={styles.singleComment}>
+                <div style={{ flex: 1 }}>
+                  <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
+                </div>
+                {isModOrAdmin && (
+                  <button 
+                    onClick={() => handleDeleteComment(note.id, c)} 
+                    style={styles.deleteCommentBtn}
+                  >
+                    <Trash2 size={11} color="#f87171" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {!isCurrentUserBanned && (
+          <form onSubmit={(e) => handleAddComment(e, note)} style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+            <input 
+              type="text" 
+              placeholder="কমেন্ট করুন..." 
+              value={commentText[note.id] || ""} 
+              onChange={(e) => setCommentText({ ...commentText, [note.id]: e.target.value })}
+              style={styles.commentInput}
+            />
+            <button type="submit" style={styles.sendCommentBtn}><Send size={12} /></button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function App() {
@@ -210,7 +342,7 @@ function App() {
   const isAdmin = currentUserRole === "Admin";
   const isModOrAdmin = currentUserRole === "Admin" || currentUserRole === "Moderator";
 
-  // Check if profile is incomplete (whatsapp removed from mandatory check)
+  // Check if profile is incomplete
   const isProfileIncomplete = user && (
     !myProfile.displayName?.trim() ||
     !myProfile.instituteName?.trim() ||
@@ -265,7 +397,6 @@ function App() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && !user) {
-        // Trigger 5s RGB Floating Welcome Message on Login
         setShowWelcomeMsg(true);
         setTimeout(() => {
           setShowWelcomeMsg(false);
@@ -851,7 +982,7 @@ function App() {
   const handleMarkAllAsRead = async () => {
     if (!user) return;
     try {
-      const unreadNotifs = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid).filter(n => !n.readBy || !n.readBy.includes(user.uid));
+      const unreadNotifs = notifications.filter(n => n.targetUid === "all" || n.targetUid === user?.uid).filter(n => !n.readBy || !n.readBy.includes(user?.uid));
       
       for (const notif of unreadNotifs) {
         const notifRef = doc(db, "notifications", notif.id);
@@ -997,7 +1128,7 @@ function App() {
       {/* 5 SEC FLOATING RGB WELCOME MESSAGE ON LOGIN */}
       {showWelcomeMsg && (
         <div style={styles.rgbFloatingWelcome} className="rgb-floating-msg">
-          🎉 স্বাগতম! সফলভাবে লগইন সম্পন্ন হয়েছে।
+          🎉 MATH HUB এ স্বাগতম! সফলভাবে লগইন সম্পন্ন হয়েছে।
         </div>
       )}
 
@@ -1625,120 +1756,6 @@ function App() {
       <footer style={styles.footer}>
         <p>© 2026 Math Note HUB | Developed by <a href="https://Anondo.bro.bd" target="_blank" rel="noopener noreferrer" style={{color: "#38bdf8"}}>Anondo</a></p>
       </footer>
-    </div>
-  );
-}
-
-function NoteCardItem({ note, user, allUsers, isModOrAdmin, isAdmin, isCurrentUserBanned, handleReactionToggle, handleAddComment, handleDeleteComment, commentText, setCommentText, handleDownload, copyLink, handleDelete, handleOpenEditModal, setViewingProfile, getUserRole }) {
-  const hasLoved = note.loves?.includes(user?.uid);
-
-  const uploaderProfile = allUsers.find(u => u.uid === note.uploaderUid);
-  const uploaderRole = getUserRole(note.uploaderEmail || uploaderProfile?.email, note.uploaderUid);
-
-  const isOwner = user && note.uploaderUid === user.uid;
-  const canEdit = isOwner || isModOrAdmin;
-
-  return (
-    <div style={styles.noteCard}>
-      <div>
-        <div style={styles.cardHeader}>
-          <span style={styles.subjectTag}>{note.subject}</span>
-          <span style={styles.dateTag}><Calendar size={12} /> {note.date}</span>
-        </div>
-
-        <h4 style={styles.fileName}>{note.fileName}</h4>
-        {note.pdfInfo && <p style={styles.pdfInfoTag}><Info size={12} /> {note.pdfInfo}</p>}
-        
-        {note.isPendingDelete && (
-          <div style={styles.pendingAlertTag}>
-            <AlertTriangle size={12} /> ডিলিট পেন্ডিং (মডারেটর: {note.deletedByModName})
-          </div>
-        )}
-
-        <p style={styles.uploaderText}>
-          Uploaded by:{" "}
-          <b 
-            onClick={() => uploaderProfile && setViewingProfile(uploaderProfile)} 
-            style={{ color: "#38bdf8", cursor: "pointer", fontWeight: "500" }}
-          >
-            {note.uploadedBy}
-          </b>
-          {" "}<RoleBadge role={uploaderRole} />
-        </p>
-      </div>
-
-      <div style={styles.cardActions}>
-        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>দেখুন</a>
-        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}><Download size={13} /></button>
-        <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}><Copy size={13} /></button>
-        
-        {canEdit && (
-          <button onClick={() => handleOpenEditModal(note)} style={styles.editBtn} title="Edit Note">
-            <Edit size={13} />
-          </button>
-        )}
-
-        {isModOrAdmin && (
-          <button onClick={() => handleDelete(note)} style={styles.deleteBtn} title={isAdmin ? "Delete Note" : "Request Delete"}>
-            <Trash2 size={13} />
-          </button>
-        )}
-      </div>
-
-      <div style={styles.interactiveBox}>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
-          <button 
-            onClick={() => handleReactionToggle(note, "love")} 
-            disabled={isCurrentUserBanned}
-            style={{ 
-              ...styles.reactionStyleBtn, 
-              backgroundColor: hasLoved ? "#ef4444" : "#1e293b",
-              color: hasLoved ? "#fff" : "#94a3b8",
-              border: hasLoved ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.1)"
-            }}
-          >
-            <Heart size={14} fill={hasLoved ? "#fff" : "none"} /> {note.loves?.length || 0}
-          </button>
-
-          <span style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px" }}>
-            <MessageCircle size={13} /> {note.comments?.length || 0}
-          </span>
-        </div>
-
-        <div style={styles.commentList}>
-          {note.comments?.map((c) => {
-            const commentUserRole = getUserRole(c.userEmail, c.userUid);
-            return (
-              <div key={c.id || Math.random()} style={styles.singleComment}>
-                <div style={{ flex: 1 }}>
-                  <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
-                </div>
-                {isModOrAdmin && (
-                  <button 
-                    onClick={() => handleDeleteComment(note.id, c)} 
-                    style={styles.deleteCommentBtn}
-                  >
-                    <Trash2 size={11} color="#f87171" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {!isCurrentUserBanned && (
-          <form onSubmit={(e) => handleAddComment(e, note)} style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
-            <input 
-              type="text" 
-              placeholder="কমেন্ট করুন..." 
-              value={commentText[note.id] || ""} 
-              onChange={(e) => setCommentText({ ...commentText, [note.id]: e.target.value })}
-              style={styles.commentInput}
-            />
-            <button type="submit" style={styles.sendCommentBtn}><Send size={12} /></button>
-          </form>
-        )}
-      </div>
     </div>
   );
 }
