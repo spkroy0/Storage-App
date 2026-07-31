@@ -23,14 +23,15 @@ import {
   arrayUnion,
   arrayRemove,
   getDocs,
-  where
+  where,
+  getDoc
 } from "firebase/firestore";
 
 // SVG Icons import from Lucide React
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck, Image as ImageIcon
 } from "lucide-react";
 
 const BOOK_LIST = [
@@ -267,6 +268,11 @@ function App() {
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   
+  // Website Logo State
+  const [siteLogoUrl, setSiteLogoUrl] = useState("");
+  const [newLogoFile, setNewLogoFile] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   const [viewingProfile, setViewingProfile] = useState(null);
 
   const [editingNote, setEditingNote] = useState(null);
@@ -422,6 +428,13 @@ function App() {
       setLoading(false);
     });
 
+    // Fetch Site Settings (Logo)
+    const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSiteLogoUrl(docSnap.data().logoUrl || "");
+      }
+    });
+
     const notesQuery = query(collection(db, "notes"), orderBy("createdAt", "desc"));
     const unsubscribeNotes = onSnapshot(notesQuery, (snapshot) => {
       setAllNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -468,12 +481,54 @@ function App() {
 
     return () => {
       unsubscribeAuth();
+      unsubscribeSettings();
       unsubscribeNotes();
       unsubscribeUsers();
       unsubscribeLogs();
       unsubscribeNotifs();
     };
   }, []);
+
+  const handleLogoUpdate = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      alert("শুধুমাত্র অ্যাডমিন লোগো পরিবর্তন করতে পারবেন!");
+      return;
+    }
+    if (!newLogoFile) {
+      alert("অনুগ্রহ করে একটি লোগো ছবি সিলেক্ট করুন!");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", newLogoFile);
+
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (result.success || result.data?.url) {
+        const logoUrl = result.data.url;
+        const settingsRef = doc(db, "settings", "general");
+        await setDoc(settingsRef, { logoUrl: logoUrl }, { merge: true });
+
+        await logActivity("Logo Updated", "অ্যাডমিন ওয়েবসাইটের লোগো পরিবর্তন করেছেন।");
+        setNewLogoFile(null);
+        setUploadingLogo(false);
+        alert("লোগো সফলভাবে আপডেট করা হয়েছে!");
+      } else {
+        throw new Error("Logo upload failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setUploadingLogo(false);
+      alert("লোগো আপলোড করতে সমস্যা হয়েছে!");
+    }
+  };
 
   const visibleUsers = allUsers.filter(u => isAdmin ? true : !u.isBanned);
 
@@ -1083,9 +1138,21 @@ function App() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "10px" }}>
-          <div>
-            <h1 style={{ ...styles.logo, fontSize: activeIsMobile ? "18px" : "20px" }} className="rgb-text-glow">Math Note HUB</h1>
-            <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* DYNAMIC SITE LOGO DISPLAY */}
+            <div style={styles.logoContainer}>
+              {siteLogoUrl ? (
+                <img src={siteLogoUrl} alt="Site Logo" style={styles.logoImageStyle} />
+              ) : (
+                <div style={styles.logoPlaceholderStyle}>
+                  <ImageIcon size={24} color="#38bdf8" />
+                </div>
+              )}
+            </div>
+            <div>
+              <h1 style={{ ...styles.logo, fontSize: activeIsMobile ? "18px" : "20px" }} className="rgb-text-glow">Math Note HUB</h1>
+              <p style={styles.subLogo}>Academic & Departmental Notes Repository</p>
+            </div>
           </div>
 
           {user && (
@@ -1412,6 +1479,30 @@ function App() {
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
+              {/* ADMIN LOGO CUSTOMIZER PANEL */}
+              {isAdmin && (
+                <div style={styles.adminLogoBox}>
+                  <h3 style={{ color: "#38bdf8", margin: "0 0 10px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <ImageIcon size={18} /> Website Logo Control (শুধুমাত্র অ্যাডমিন দেখতে পাবেন)
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "12px" }}>
+                    এখানে নতুন লোগো আপলোড করলে সাথে সাথে ওয়েবসাইটের হেডার লোগো আপডেট হয়ে যাবে।
+                  </p>
+                  <form onSubmit={handleLogoUpdate} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setNewLogoFile(e.target.files[0])} 
+                      style={{ color: "#94a3b8", fontSize: "12px" }}
+                      required
+                    />
+                    <button type="submit" disabled={uploadingLogo} style={styles.logoUploadBtn}>
+                      {uploadingLogo ? "আপলোড হচ্ছে..." : "লোগো আপডেট করুন"}
+                    </button>
+                  </form>
+                </div>
+              )}
+
               {isAdmin && pendingDeleteNotes.length > 0 && (
                 <div style={styles.adminReviewBox}>
                   <h3 style={{ color: "#f87171", margin: "0 0 12px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1809,6 +1900,9 @@ const styles = {
   activeModeBtn: { backgroundColor: "#0284c7", color: "#fff", borderColor: "#0284c7" },
 
   header: { backgroundColor: "#0f172a", display: "flex", flexDirection: "column", borderBottom: "1px solid #1e293b" },
+  logoContainer: { width: "42px", height: "42px", borderRadius: "8px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#1e293b", border: "1px solid #334155" },
+  logoImageStyle: { width: "100%", height: "100%", objectFit: "cover" },
+  logoPlaceholderStyle: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
   logo: { color: "#f8fafc", margin: 0, fontWeight: "800", letterSpacing: "0.5px" },
   subLogo: { fontSize: "11px", color: "#64748b", margin: 0 },
   branding: { fontSize: "12px", color: "#64748b" },
@@ -1874,6 +1968,9 @@ const styles = {
   inputGrid: { display: "grid", gap: "12px" },
   saveProfileBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px", marginTop: "10px" },
 
+  adminLogoBox: { backgroundColor: "rgba(56, 189, 248, 0.08)", border: "1px solid rgba(56, 189, 248, 0.3)", padding: "16px", borderRadius: "10px", marginBottom: "20px" },
+  logoUploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "500" },
+
   adminReviewBox: { backgroundColor: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.3)", padding: "16px", borderRadius: "10px", marginBottom: "20px" },
   reviewItem: { display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#0f172a", padding: "10px 14px", borderRadius: "8px", flexWrap: "wrap", gap: "8px" },
   approveBtn: { backgroundColor: "#16a34a", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" },
@@ -1897,7 +1994,7 @@ const styles = {
   searchInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   dateFilterInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", zIndex: 10, maxHeight: "150px", overflowY: "auto" },
-  suggestionItem: { padding: "10px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1e293b" },
+  suggestionItem: { path: "...", padding: "10px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1e293b" },
 
   uploadCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", marginBottom: "25px", border: "1px solid #1e293b" },
   uploadForm: { display: "flex", flexDirection: "column" },
