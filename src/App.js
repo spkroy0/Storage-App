@@ -30,7 +30,7 @@ import {
 import { 
   Home, LayoutDashboard, User, LogOut, Shield,
   Search, Calendar, UploadCloud, FileText, Download, Copy, Edit, Trash2,
-  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck, Image as ImageIcon
+  Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck, Image as ImageIcon, ChevronLeft, ChevronRight
 } from "lucide-react";
 
 // PDF.js for converting PDF pages to images
@@ -154,6 +154,18 @@ function NoteCardItem({
   const isOwner = user && note.uploaderUid === user.uid;
   const canEdit = isOwner || isModOrAdmin;
 
+  // Multiple images pages state for slider
+  const pagesList = note.pages && note.pages.length > 0 ? note.pages : [note.fileUrl];
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const handleNextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % pagesList.length);
+  };
+
+  const handlePrevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + pagesList.length) % pagesList.length);
+  };
+
   return (
     <div style={styles.noteCard}>
       <div>
@@ -165,6 +177,30 @@ function NoteCardItem({
         <h4 style={styles.fileName}>{note.fileName}</h4>
         {note.pdfInfo && <p style={styles.pdfInfoTag}><Info size={12} /> {note.pdfInfo}</p>}
         
+        {/* Multi-image preview gallery container */}
+        <div style={styles.imageGalleryContainer}>
+          <div style={styles.imageGalleryWrapper}>
+            <img 
+              src={pagesList[currentImageIndex]} 
+              alt="Note Preview" 
+              style={styles.galleryImageStyle} 
+            />
+            {pagesList.length > 1 && (
+              <>
+                <button type="button" onClick={handlePrevImage} style={styles.galleryPrevBtn}>
+                  <ChevronLeft size={16} />
+                </button>
+                <button type="button" onClick={handleNextImage} style={styles.galleryNextBtn}>
+                  <ChevronRight size={16} />
+                </button>
+                <div style={styles.galleryCounterBadge}>
+                  {currentImageIndex + 1} / {pagesList.length}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {note.isPendingDelete && (
           <div style={styles.pendingAlertTag}>
             <AlertTriangle size={12} /> ডিলিট পেন্ডিং (মডারেটর: {note.deletedByModName})
@@ -184,9 +220,9 @@ function NoteCardItem({
       </div>
 
       <div style={styles.cardActions}>
-        <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>দেখুন</a>
-        <button onClick={() => handleDownload(note.fileUrl, note.fileName, note.pages)} style={styles.downloadBtn}><Download size={13} /></button>
-        <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}><Copy size={13} /></button>
+        <a href={pagesList[currentImageIndex]} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>বড় করে দেখুন</a>
+        <button onClick={() => handleDownload(note.fileUrl, note.fileName, note.pages)} style={styles.downloadBtn} title="Download PDF"><Download size={13} /></button>
+        <button onClick={() => copyLink(pagesList[currentImageIndex])} style={styles.copyBtn} title="Copy Image Link"><Copy size={13} /></button>
         
         {canEdit && (
           <button onClick={() => handleOpenEditModal(note)} style={styles.editBtn} title="Edit Note">
@@ -286,7 +322,7 @@ function App() {
   const [editFileName, setEditFileName] = useState("");
   const [editPdfInfo, setEditPdfInfo] = useState("");
 
-  const [files, setFiles] = useState([]); // Multiple files/images state with custom customName & file object
+  const [files, setFiles] = useState([]); 
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [pdfInfo, setPdfInfo] = useState(""); 
@@ -765,7 +801,6 @@ function App() {
     }
   };
 
-  // Handle files selection with preview and name mapping
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
     const newFileEntries = selectedFiles.map((file) => ({
@@ -774,15 +809,13 @@ function App() {
       previewUrl: URL.createObjectURL(file)
     }));
     setFiles(prev => [...prev, ...newFileEntries]);
-    e.target.value = null; // Reset input so same file can be chosen again if needed
+    e.target.value = null; 
   };
 
-  // Remove a specific selected file before upload
   const handleRemoveSelectedFile = (indexToRemove) => {
     setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // Rename a specific selected file before upload
   const handleRenameSelectedFile = (indexToRename, newName) => {
     setFiles(prev => prev.map((item, index) => {
       if (index === indexToRename) {
@@ -882,7 +915,7 @@ function App() {
         date: noteDate,
         pdfInfo: pdfInfo.trim(),
         fileUrl: downloadURL,
-        pages: imageUrls, // Serialized image URLs array
+        pages: imageUrls, 
         uploadedBy: uName,
         uploaderUid: user.uid,
         uploaderEmail: user.email,
@@ -1839,7 +1872,6 @@ function App() {
 
                   <input type="text" placeholder="নোট সংক্রান্ত অতিরিক্ত তথ্য (PDF Info)" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} style={{ ...styles.input, marginTop: "12px" }} />
 
-                  {/* Multiple file/image selection input */}
                   <div style={{ margin: "15px 0" }}>
                     <label style={{ display: "block", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
                       ফাইল বা ছবি সিলেক্ট করুন (একাধিক সিলেক্ট করা যাবে):
@@ -1853,7 +1885,6 @@ function App() {
                     />
                   </div>
 
-                  {/* Selected Files Preview, Rename, and Delete section */}
                   {files.length > 0 && (
                     <div style={styles.selectedFilesContainer}>
                       <h4 style={{ color: "#38bdf8", fontSize: "13px", marginBottom: "8px" }}>
@@ -2195,6 +2226,15 @@ const styles = {
   dateTag: { color: "#64748b", fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" },
   fileName: { fontSize: "14px", color: "#f8fafc", margin: "4px 0 8px 0", fontWeight: "500" },
   pdfInfoTag: { color: "#94a3b8", fontSize: "12px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px" },
+  
+  // Image Gallery CSS Styles
+  imageGalleryContainer: { position: "relative", width: "100%", height: "220px", backgroundColor: "#090d16", borderRadius: "8px", overflow: "hidden", marginBottom: "10px", border: "1px solid #1e293b" },
+  imageGalleryWrapper: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" },
+  galleryImageStyle: { maxWidth: "100%", maxHeight: "100%", objectFit: "contain" },
+  galleryPrevBtn: { position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  galleryNextBtn: { position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  galleryCounterBadge: { position: "absolute", bottom: "6px", right: "8px", backgroundColor: "rgba(0,0,0,0.7)", color: "#38bdf8", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "600" },
+
   pendingAlertTag: { color: "#f87171", fontSize: "11px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px" },
   uploaderText: { fontSize: "12px", color: "#64748b", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" },
   
@@ -2208,27 +2248,7 @@ const styles = {
   interactiveBox: { borderTop: "1px solid #1e293b", paddingTop: "10px" },
   reactionStyleBtn: { padding: "5px 10px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" },
   commentList: { maxHeight: "90px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", backgroundColor: "#090d16", padding: "8px", borderRadius: "6px", marginBottom: "8px" },
-  singleComment: { fontSize: "11px", color: "#cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" },
-  deleteCommentBtn: { background: "none", border: "none", cursor: "pointer" },
-  commentInput: { flex: 1, padding: "6px 10px", borderRadius: "4px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "12px" },
-  sendCommentBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "6px 10px", borderRadius: "4px", cursor: "pointer" },
-
-  modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: "15px" },
-  modalCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", width: "100%", position: "relative", border: "1px solid #1e293b" },
-  closeModalBtn: { position: "absolute", top: "12px", right: "12px", backgroundColor: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" },
-  modalScoreBar: { display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px" },
-  modalBadge: { backgroundColor: "#16a34a", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
-  modalBadgeAdmin: { backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", border: "1px solid rgba(56, 189, 248, 0.3)" },
-  modalBadgeRank: { backgroundColor: "#0284c7", color: "#fff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" },
-  profileDetailsList: { backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column", gap: "8px", color: "#cbd5e1" },
-
-  activityLogList: { maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" },
-  activityItem: { backgroundColor: "#090d16", padding: "10px 12px", borderRadius: "8px", border: "1px solid #1e293b" },
-
-  waCopyBtn: { backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" },
-  copyToast: { position: "absolute", top: "-28px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#0284c7", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", whiteSpace: "nowrap" },
-
-  footer: { textAlign: "center", padding: "20px", borderTop: "1px solid #1e293b", color: "#64748b", fontSize: "12px", marginTop: "40px" }
+  singleComment: { fontSize: "11px", color: "#cbd5e1", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }
 };
 
 export default App;
