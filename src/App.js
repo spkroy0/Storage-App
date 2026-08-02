@@ -33,6 +33,12 @@ import {
   Heart, MessageCircle, Send, Crown, Award, CheckCircle, XCircle, Info, Ban, UserX, AlertTriangle, ExternalLink, Check, GraduationCap, Bell, Activity, Building, KeyRound, CheckCheck, Image as ImageIcon
 } from "lucide-react";
 
+// PDF.js for converting PDF pages to images
+import * as pdfjsLib from "pdfjs-dist";
+import { jsPDF } from "jspdf";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 const BOOK_LIST = [
   "Notice for Students ★",
   "ফান্ডামেন্টাল অব ম্যাথমেটিক্স (Fundamentals of Mathematics) – কোড: ২১৩৭০১",
@@ -179,7 +185,7 @@ function NoteCardItem({
 
       <div style={styles.cardActions}>
         <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" style={styles.viewBtn}>দেখুন</a>
-        <button onClick={() => handleDownload(note.fileUrl, note.fileName)} style={styles.downloadBtn}><Download size={13} /></button>
+        <button onClick={() => handleDownload(note.fileUrl, note.fileName, note.pages)} style={styles.downloadBtn}><Download size={13} /></button>
         <button onClick={() => copyLink(note.fileUrl)} style={styles.copyBtn}><Copy size={13} /></button>
         
         {canEdit && (
@@ -432,7 +438,6 @@ function App() {
       setLoading(false);
     });
 
-    // Fetch Site Settings (Logo)
     const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), (docSnap) => {
       if (docSnap.exists()) {
         setSiteLogoUrl(docSnap.data().logoUrl || "");
@@ -765,6 +770,7 @@ function App() {
     }
   };
 
+  // Convert PDF pages to sequence of images and upload to ImgBB
   const handleUpload = async (e) => {
     e.preventDefault();
     if (isCurrentUserBanned) {
@@ -778,97 +784,110 @@ function App() {
     }
 
     setUploading(true);
-    setUploadProgress(0);
-    setUploadSpeed("সংযুক্ত হচ্ছে...");
-    setUploadedBytesText("0 KB / " + (file.size / (1024 * 1024)).toFixed(2) + " MB");
+    setUploadProgress(10);
+    setUploadSpeed("প্রক্রিয়াকরণ হচ্ছে...");
+    setUploadedBytesText("0%");
 
-    const formData = new FormData();
-    formData.append("image", file);
+    try {
+      let imageUrls = [];
 
-    const xhr = new XMLHttpRequest();
-    const startTime = Date.now();
+      if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdfDoc = await loadingTask.promise;
+        const numPages = pdfDoc.numPages;
 
-    xhr.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) {
-        const percentComplete = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(percentComplete);
+        for (let i = 1; i <= numPages; i++) {
+          setUploadSpeed(`পেজ ${i}/${numPages} প্রসেস হচ্ছে...`);
+          setUploadProgress(Math.round((i / numPages) * 50));
 
-        const elapsedTime = (Date.now() - startTime) / 1000;
-        const loadedMB = (event.loaded / (1024 * 1024)).toFixed(2);
-        const totalMB = (event.total / (1024 * 1024)).toFixed(2);
-        setUploadedBytesText(`${loadedMB} MB / ${totalMB} MB`);
+          const page = await pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
 
-        if (elapsedTime > 0) {
-          const speedBps = event.loaded / elapsedTime;
-          if (speedBps > 1024 * 1024) {
-            setUploadSpeed((speedBps / (1024 * 1024)).toFixed(2) + " MB/s");
-          } else {
-            setUploadSpeed((speedBps / 1024).toFixed(2) + " KB/s");
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const blob = await (await fetch(dataUrl)).blob();
+
+          const formData = new FormData();
+          formData.append("image", blob, `page_${i}.jpg`);
+
+          const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+            method: "POST",
+            body: formData,
+          });
+          const jsonRes = await res.json();
+          if (jsonRes.success || jsonRes.data?.url) {
+            imageUrls.push(jsonRes.data.url);
           }
         }
-      }
-    });
+      } else {
+        // Direct Image Upload
+        setUploadSpeed("ছবি আপলোড হচ্ছে...");
+        setUploadProgress(30);
+        const formData = new FormData();
+        formData.append("image", file);
 
-    xhr.addEventListener("load", async () => {
-      try {
-        if (xhr.status === 200) {
-          const result = JSON.parse(xhr.responseText);
-          if (result.success || result.data?.url) {
-            const downloadURL = result.data.url;
-            const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
-
-            await addDoc(collection(db, "notes"), {
-              fileName: file.name,
-              subject: subject,
-              date: noteDate,
-              pdfInfo: pdfInfo.trim(),
-              fileUrl: downloadURL,
-              uploadedBy: uName,
-              uploaderUid: user.uid,
-              uploaderEmail: user.email,
-              loves: [],
-              cares: [],
-              lovedPointUsers: [],
-              caredPointUsers: [],
-              comments: [],
-              commentedPointUsers: [],
-              isPendingDelete: false,
-              deletedByModName: "",
-              createdAt: new Date()
-            });
-
-            await updateUserScore(user.uid, 100);
-
-            const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
-            await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
-            await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
-
-            setUploading(false);
-            setFile(null);
-            setSubject(BOOK_LIST[0]);
-            setNoteDate("");
-            setPdfInfo("");
-            setUploadProgress(0);
-            alert("নোট/PDF সফলভাবে আপলোড হয়েছে! (+100 Points)");
-          } else {
-            throw new Error("আপলোডে সমস্যা হয়েছে।");
-          }
-        } else {
-          throw new Error("Server error: " + xhr.status);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+          method: "POST",
+          body: formData,
+        });
+        const jsonRes = await res.json();
+        if (jsonRes.success || jsonRes.data?.url) {
+          imageUrls.push(jsonRes.data.url);
         }
-      } catch (error) {
-        setUploading(false);
-        alert(`আপলোড ব্যর্থ হয়েছে!`);
       }
-    });
 
-    xhr.addEventListener("error", () => {
+      setUploadProgress(90);
+      setUploadSpeed("ডাটাবেসে সেভ হচ্ছে...");
+
+      const downloadURL = imageUrls[0]; // Main view URL
+      const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
+
+      await addDoc(collection(db, "notes"), {
+        fileName: file.name,
+        subject: subject,
+        date: noteDate,
+        pdfInfo: pdfInfo.trim(),
+        fileUrl: downloadURL,
+        pages: imageUrls, // Storing sequential pages array
+        uploadedBy: uName,
+        uploaderUid: user.uid,
+        uploaderEmail: user.email,
+        loves: [],
+        cares: [],
+        lovedPointUsers: [],
+        caredPointUsers: [],
+        comments: [],
+        commentedPointUsers: [],
+        isPendingDelete: false,
+        deletedByModName: "",
+        createdAt: new Date()
+      });
+
+      await updateUserScore(user.uid, 100);
+
+      const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
+      await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
+      await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
+
       setUploading(false);
-      alert("নেটওয়ার্ক ত্রুটির কারণে আপলোড ব্যর্থ হয়েছে!");
-    });
+      setFile(null);
+      setSubject(BOOK_LIST[0]);
+      setNoteDate("");
+      setPdfInfo("");
+      setUploadProgress(0);
+      alert("নোট/PDF সফলভাবে আপলোড হয়েছে! (+100 Points)");
 
-    xhr.open("POST", `https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`);
-    xhr.send(formData);
+    } catch (error) {
+      console.error(error);
+      setUploading(false);
+      alert("আপলোড ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।");
+    }
   };
 
   const handleOpenEditModal = (note) => {
@@ -1045,18 +1064,52 @@ function App() {
     alert("লিংক কপি হয়েছে!");
   };
 
-  const handleDownload = async (fileUrl, fileName) => {
+  // Compile sequential images back into a PDF for download
+  const handleDownload = async (fileUrl, fileName, pages) => {
     try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName || "Note-File";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      if (pages && pages.length > 0) {
+        const pdf = new jsPDF();
+        for (let i = 0; i < pages.length; i++) {
+          const imgUrl = pages[i];
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = imgUrl;
+          });
+
+          const imgWidth = 210;
+          const pageHeight = 295;
+          const imgHeight = (img.height * imgWidth) / img.width;
+          let heightLeft = imgHeight;
+          let position = 0;
+
+          if (i > 0) pdf.addPage();
+          pdf.addImage(img, 'JPEG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(img, 'JPEG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
+        }
+        pdf.save(`${fileName.replace(/\.[^/.]+$/, "")}.pdf`);
+      } else {
+        const response = await fetch(fileUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName || "Note-File.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     } catch (error) {
+      console.error(error);
       window.open(fileUrl, "_blank");
     }
   };
@@ -1133,7 +1186,6 @@ function App() {
     );
   }
 
-  // Dynamic layout adjustments based on activeIsMobile
   const containerStyle = {
     ...styles.container,
     maxWidth: activeIsMobile ? "100%" : "1200px",
@@ -1144,7 +1196,6 @@ function App() {
 
   return (
     <div style={containerStyle}>
-      {/* DEVICE MODE TOGGLE BAR (Mobile & Computer Dynamic Control) */}
       <div style={styles.deviceToggleBar}>
         <span style={{ fontSize: "12px", color: "#94a3b8" }}>Device Layout Mode:</span>
         <div style={{ display: "flex", gap: "5px" }}>
@@ -1169,7 +1220,6 @@ function App() {
         </div>
       </div>
 
-      {/* HEADER WITH MARQUEE */}
       <header style={{ ...styles.header, padding: activeIsMobile ? "10px 3%" : "10px 6%" }}>
         <div style={{ width: "100%", marginBottom: "8px" }}>
           <marquee behavior="scroll" direction="left" scrollamount="5" style={{ color: "#facc15", fontWeight: "600", fontSize: activeIsMobile ? "12px" : "14px", backgroundColor: "#1e293b", padding: "4px 0", borderRadius: "4px" }}>
@@ -1179,7 +1229,6 @@ function App() {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {/* DYNAMIC SITE LOGO DISPLAY */}
             <div style={styles.logoContainer}>
               {siteLogoUrl ? (
                 <img src={siteLogoUrl} alt="Site Logo" style={styles.logoImageStyle} />
@@ -1273,7 +1322,6 @@ function App() {
         </div>
       </header>
 
-      {/* 5 SEC FLOATING RGB WELCOME MESSAGE ON LOGIN */}
       {showWelcomeMsg && (
         <div style={styles.rgbFloatingWelcome} className="rgb-floating-msg">
           🎉 MATH HUB এ স্বাগতম! সফলভাবে লগইন সম্পন্ন হয়েছে।
@@ -1519,11 +1567,11 @@ function App() {
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
-              {/* ADMIN LOGO CUSTOMIZER PANEL */}
+              {/* Developer tools hidden for non-admins */}
               {isAdmin && (
                 <div style={styles.adminLogoBox}>
                   <h3 style={{ color: "#38bdf8", margin: "0 0 10px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <ImageIcon size={18} /> Website Logo Control (শুধুমাত্র অ্যাডমিন দেখতে পাবেন)
+                    <ImageIcon size={18} /> Website Logo Control (Admin Only)
                   </h3>
                   <p style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "12px" }}>
                     এখানে নতুন লোগো আপলোড করলে সাথে সাথে ওয়েবসাইটের হেডার লোগো আপডেট হয়ে যাবে।
@@ -1767,24 +1815,20 @@ function App() {
 
                   <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} />
                   
-                  {/* LIVE UPLOADING STATUS & PROGRESS BAR UI */}
                   {uploading && (
                     <div style={{ marginBottom: "15px", backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
-                        <span>আপলোড হচ্ছে... {uploadProgress}%</span>
-                        <span>স্পিড: {uploadSpeed}</span>
+                        <span>আপলোড ও কনভার্ট হচ্ছে... {uploadProgress}%</span>
+                        <span>{uploadSpeed}</span>
                       </div>
                       <div style={{ width: "100%", backgroundColor: "#1e293b", borderRadius: "4px", height: "8px", overflow: "hidden", marginBottom: "6px" }}>
                         <div style={{ width: `${uploadProgress}%`, backgroundColor: "#22c55e", height: "100%", transition: "width 0.2s ease" }}></div>
-                      </div>
-                      <div style={{ textAlign: "right", fontSize: "11px", color: "#94a3b8" }}>
-                        প্রোগ্রেস: {uploadedBytesText}
                       </div>
                     </div>
                   )}
 
                   <button type="submit" disabled={uploading || isCurrentUserBanned} style={{...styles.uploadBtn, opacity: (uploading || isCurrentUserBanned) ? 0.5 : 1}}>
-                    {uploading ? "আপলোড হচ্ছে..." : "নোট আপলোড করুন"}
+                    {uploading ? "প্রসেসিং ও আপলোড হচ্ছে..." : "নোট আপলোড করুন"}
                   </button>
                 </form>
               </div>
