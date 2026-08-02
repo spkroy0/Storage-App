@@ -23,8 +23,7 @@ import {
   arrayUnion,
   arrayRemove,
   getDocs,
-  where,
-  getDoc
+  where
 } from "firebase/firestore";
 
 // SVG Icons import from Lucide React
@@ -267,6 +266,11 @@ function App() {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Live Upload Progress States
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState("");
+  const [uploadedBytesText, setUploadedBytesText] = useState("");
   
   // Website Logo State
   const [siteLogoUrl, setSiteLogoUrl] = useState("");
@@ -774,61 +778,97 @@ function App() {
     }
 
     setUploading(true);
+    setUploadProgress(0);
+    setUploadSpeed("সংযুক্ত হচ্ছে...");
+    setUploadedBytesText("0 KB / " + (file.size / (1024 * 1024)).toFixed(2) + " MB");
 
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
+    const formData = new FormData();
+    formData.append("image", file);
 
-      const response = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
-        method: "POST",
-        body: formData,
-      });
+    const xhr = new XMLHttpRequest();
+    const startTime = Date.now();
 
-      const result = await response.json();
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        const percentComplete = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percentComplete);
 
-      if (result.success || result.data?.url) {
-        const downloadURL = result.data.url;
-        const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
+        const elapsedTime = (Date.now() - startTime) / 1000;
+        const loadedMB = (event.loaded / (1024 * 1024)).toFixed(2);
+        const totalMB = (event.total / (1024 * 1024)).toFixed(2);
+        setUploadedBytesText(`${loadedMB} MB / ${totalMB} MB`);
 
-        await addDoc(collection(db, "notes"), {
-          fileName: file.name,
-          subject: subject,
-          date: noteDate,
-          pdfInfo: pdfInfo.trim(),
-          fileUrl: downloadURL,
-          uploadedBy: uName,
-          uploaderUid: user.uid,
-          uploaderEmail: user.email,
-          loves: [],
-          cares: [],
-          lovedPointUsers: [],
-          caredPointUsers: [],
-          comments: [],
-          commentedPointUsers: [],
-          isPendingDelete: false,
-          deletedByModName: "",
-          createdAt: new Date()
-        });
-
-        await updateUserScore(user.uid, 100);
-
-        const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
-        await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
-        await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
-
-        setUploading(false);
-        setFile(null);
-        setSubject(BOOK_LIST[0]);
-        setNoteDate("");
-        setPdfInfo("");
-        alert("নোট/PDF সফলভাবে আপলোড হয়েছে! (+100 Points)");
-      } else {
-        throw new Error("আপলোডে সমস্যা হয়েছে।");
+        if (elapsedTime > 0) {
+          const speedBps = event.loaded / elapsedTime;
+          if (speedBps > 1024 * 1024) {
+            setUploadSpeed((speedBps / (1024 * 1024)).toFixed(2) + " MB/s");
+          } else {
+            setUploadSpeed((speedBps / 1024).toFixed(2) + " KB/s");
+          }
+        }
       }
-    } catch (error) {
+    });
+
+    xhr.addEventListener("load", async () => {
+      try {
+        if (xhr.status === 200) {
+          const result = JSON.parse(xhr.responseText);
+          if (result.success || result.data?.url) {
+            const downloadURL = result.data.url;
+            const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
+
+            await addDoc(collection(db, "notes"), {
+              fileName: file.name,
+              subject: subject,
+              date: noteDate,
+              pdfInfo: pdfInfo.trim(),
+              fileUrl: downloadURL,
+              uploadedBy: uName,
+              uploaderUid: user.uid,
+              uploaderEmail: user.email,
+              loves: [],
+              cares: [],
+              lovedPointUsers: [],
+              caredPointUsers: [],
+              comments: [],
+              commentedPointUsers: [],
+              isPendingDelete: false,
+              deletedByModName: "",
+              createdAt: new Date()
+            });
+
+            await updateUserScore(user.uid, 100);
+
+            const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
+            await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
+            await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
+
+            setUploading(false);
+            setFile(null);
+            setSubject(BOOK_LIST[0]);
+            setNoteDate("");
+            setPdfInfo("");
+            setUploadProgress(0);
+            alert("নোট/PDF সফলভাবে আপলোড হয়েছে! (+100 Points)");
+          } else {
+            throw new Error("আপলোডে সমস্যা হয়েছে।");
+          }
+        } else {
+          throw new Error("Server error: " + xhr.status);
+        }
+      } catch (error) {
+        setUploading(false);
+        alert(`আপলোড ব্যর্থ হয়েছে!`);
+      }
+    });
+
+    xhr.addEventListener("error", () => {
       setUploading(false);
-      alert(`আপলোড ব্যর্থ হয়েছে!`);
-    }
+      alert("নেটওয়ার্ক ত্রুটির কারণে আপলোড ব্যর্থ হয়েছে!");
+    });
+
+    xhr.open("POST", `https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`);
+    xhr.send(formData);
   };
 
   const handleOpenEditModal = (note) => {
@@ -1243,7 +1283,7 @@ function App() {
       {user && isCurrentUserBanned && (
         <div style={styles.bannedBanner}>
           <AlertTriangle size={20} color="#f87171" />
-          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেনবিধা নেই।</span>
+          <span>আপনার অ্যাকাউন্টটি স্থগিত (Banned) করা হয়েছে। আপনি কেবল দেখতে পারবেন, কোনো পোস্ট/কমেন্ট করতে পারবেন না।</span>
         </div>
       )}
 
@@ -1727,7 +1767,23 @@ function App() {
 
                   <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} />
                   
-                  <button type="submit" disabled={uploading || isCurrentUserBanned} style={{...styles.uploadBtn, opacity: isCurrentUserBanned ? 0.5 : 1}}>
+                  {/* LIVE UPLOADING STATUS & PROGRESS BAR UI */}
+                  {uploading && (
+                    <div style={{ marginBottom: "15px", backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
+                        <span>আপলোড হচ্ছে... {uploadProgress}%</span>
+                        <span>স্পিড: {uploadSpeed}</span>
+                      </div>
+                      <div style={{ width: "100%", backgroundColor: "#1e293b", borderRadius: "4px", height: "8px", overflow: "hidden", marginBottom: "6px" }}>
+                        <div style={{ width: `${uploadProgress}%`, backgroundColor: "#22c55e", height: "100%", transition: "width 0.2s ease" }}></div>
+                      </div>
+                      <div style={{ textAlign: "right", fontSize: "11px", color: "#94a3b8" }}>
+                        প্রোগ্রেস: {uploadedBytesText}
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={uploading || isCurrentUserBanned} style={{...styles.uploadBtn, opacity: (uploading || isCurrentUserBanned) ? 0.5 : 1}}>
                     {uploading ? "আপলোড হচ্ছে..." : "নোট আপলোড করুন"}
                   </button>
                 </form>
@@ -1994,7 +2050,7 @@ const styles = {
   searchInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   dateFilterInput: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #1e293b", backgroundColor: "#090d16", color: "#fff", fontSize: "13px", boxSizing: "border-box" },
   suggestionBox: { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", zIndex: 10, maxHeight: "150px", overflowY: "auto" },
-  suggestionItem: { path: "...", padding: "10px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1e293b" },
+  suggestionItem: { padding: "10px", cursor: "pointer", fontSize: "12px", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1e293b" },
 
   uploadCard: { backgroundColor: "#0f172a", padding: "20px", borderRadius: "12px", marginBottom: "25px", border: "1px solid #1e293b" },
   uploadForm: { display: "flex", flexDirection: "column" },
