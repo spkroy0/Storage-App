@@ -286,7 +286,7 @@ function App() {
   const [editFileName, setEditFileName] = useState("");
   const [editPdfInfo, setEditPdfInfo] = useState("");
 
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // Multiple files/images state
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [pdfInfo, setPdfInfo] = useState(""); 
@@ -772,8 +772,8 @@ function App() {
       return;
     }
 
-    if (!file || !subject || !noteDate) {
-      alert("অনুগ্রহ করে ফাইল, বিষয় এবং তারিখ প্রদান করুন!");
+    if (files.length === 0 || !subject || !noteDate) {
+      alert("অনুগ্রহ করে ফাইল/ছবি, বিষয় এবং তারিখ প্রদান করুন!");
       return;
     }
 
@@ -784,31 +784,51 @@ function App() {
 
     try {
       let imageUrls = [];
+      const totalFiles = files.length;
 
-      if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdfDoc = await loadingTask.promise;
-        const numPages = pdfDoc.numPages;
+      for (let index = 0; index < totalFiles; index++) {
+        const currentFile = files[index];
+        
+        if (currentFile.type === "application/pdf" || currentFile.name.endsWith(".pdf")) {
+          const arrayBuffer = await currentFile.arrayBuffer();
+          const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+          const pdfDoc = await loadingTask.promise;
+          const numPages = pdfDoc.numPages;
 
-        for (let i = 1; i <= numPages; i++) {
-          setUploadSpeed(`পেজ ${i}/${numPages} প্রসেস হচ্ছে...`);
-          setUploadProgress(Math.round((i / numPages) * 50));
+          for (let i = 1; i <= numPages; i++) {
+            setUploadSpeed(`ফাইল ${index + 1}/${totalFiles} (পেজ ${i}/${numPages}) প্রসেস হচ্ছে...`);
+            setUploadProgress(Math.round(((index + (i / numPages)) / totalFiles) * 80));
 
-          const page = await pdfDoc.getPage(i);
-          const viewport = page.getViewport({ scale: 1.5 });
-          const canvas = document.createElement("canvas");
-          const context = canvas.getContext("2d");
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
+            const page = await pdfDoc.getPage(i);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
 
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-          const blob = await (await fetch(dataUrl)).blob();
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            const blob = await (await fetch(dataUrl)).blob();
 
+            const formData = new FormData();
+            formData.append("image", blob, `file_${index}_page_${i}.jpg`);
+
+            const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
+              method: "POST",
+              body: formData,
+            });
+            const jsonRes = await res.json();
+            if (jsonRes.success || jsonRes.data?.url) {
+              imageUrls.push(jsonRes.data.url);
+            }
+          }
+        } else {
+          setUploadSpeed(`ছবি ${index + 1}/${totalFiles} আপলোড হচ্ছে...`);
+          setUploadProgress(Math.round(((index + 1) / totalFiles) * 80));
+          
           const formData = new FormData();
-          formData.append("image", blob, `page_${i}.jpg`);
+          formData.append("image", currentFile);
 
           const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
             method: "POST",
@@ -819,20 +839,6 @@ function App() {
             imageUrls.push(jsonRes.data.url);
           }
         }
-      } else {
-        setUploadSpeed("ছবি আপলোড হচ্ছে...");
-        setUploadProgress(30);
-        const formData = new FormData();
-        formData.append("image", file);
-
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${FILE_HOST_API_KEY}`, {
-          method: "POST",
-          body: formData,
-        });
-        const jsonRes = await res.json();
-        if (jsonRes.success || jsonRes.data?.url) {
-          imageUrls.push(jsonRes.data.url);
-        }
       }
 
       setUploadProgress(90);
@@ -840,14 +846,15 @@ function App() {
 
       const downloadURL = imageUrls[0]; 
       const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
+      const mainFileName = files.length > 1 ? `${files[0].name} এবং আরও ${files.length - 1}টি ফাইল` : files[0].name;
 
       await addDoc(collection(db, "notes"), {
-        fileName: file.name,
+        fileName: mainFileName,
         subject: subject,
         date: noteDate,
         pdfInfo: pdfInfo.trim(),
         fileUrl: downloadURL,
-        pages: imageUrls, 
+        pages: imageUrls, // Serialized image URLs array
         uploadedBy: uName,
         uploaderUid: user.uid,
         uploaderEmail: user.email,
@@ -865,16 +872,16 @@ function App() {
       await updateUserScore(user.uid, 100);
 
       const notifTitle = subject.includes("Notice") ? "নতুন নোটিশ প্রকাশিত হয়েছে!" : "নতুন নোট আপলোড হয়েছে!";
-      await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${file.name}`, "info", downloadURL);
-      await logActivity("File Uploaded", `আপলোড করেছেন: ${file.name} (বিষয়: ${subject})`);
+      await pushNotification("all", notifTitle, `${uName} নতুন ফাইল আপলোড করেছেন: ${mainFileName}`, "info", downloadURL);
+      await logActivity("File Uploaded", `আপলোড করেছেন: ${mainFileName} (বিষয়: ${subject})`);
 
       setUploading(false);
-      setFile(null);
+      setFiles([]);
       setSubject(BOOK_LIST[0]);
       setNoteDate("");
       setPdfInfo("");
       setUploadProgress(0);
-      alert("নোট/PDF সফলভাবে আপলোড হয়েছে! (+100 Points)");
+      alert("নোট/ফাইল সফলভাবে আপলোড হয়েছে! (+100 Points)");
 
     } catch (error) {
       console.error(error);
@@ -1789,7 +1796,7 @@ function App() {
 
               <div style={styles.uploadCard}>
                 <h3 style={{ color: "#f8fafc", marginBottom: "15px", fontSize: "16px", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <UploadCloud size={20} color="#38bdf8" /> নতুন PDF / ছবি শেয়ার করুন (+100 Points)
+                  <UploadCloud size={20} color="#38bdf8" /> একাধিক ছবি বা PDF একসাথে আপলোড করুন (+100 Points)
                 </h3>
                 <form onSubmit={handleUpload} style={styles.uploadForm}>
                   <div style={{ ...styles.inputGroup, flexDirection: activeIsMobile ? "column" : "row" }}>
@@ -1804,8 +1811,22 @@ function App() {
 
                   <input type="text" placeholder="নোট সংক্রান্ত অতিরিক্ত তথ্য (PDF Info)" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} style={{ ...styles.input, marginTop: "12px" }} />
 
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0])} required style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} />
+                  {/* Multiple file/image selection input enabled */}
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept=".pdf,.png,.jpg,.jpeg" 
+                    onChange={(e) => setFiles(Array.from(e.target.files))} 
+                    required 
+                    style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} 
+                  />
                   
+                  {files.length > 0 && (
+                    <div style={{ fontSize: "12px", color: "#38bdf8", marginBottom: "10px" }}>
+                      নির্বাচিত ফাইল সংখ্যা: {files.length}টি
+                    </div>
+                  )}
+
                   {uploading && (
                     <div style={{ marginBottom: "15px", backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
