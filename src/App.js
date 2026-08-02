@@ -286,7 +286,7 @@ function App() {
   const [editFileName, setEditFileName] = useState("");
   const [editPdfInfo, setEditPdfInfo] = useState("");
 
-  const [files, setFiles] = useState([]); // Multiple files/images state
+  const [files, setFiles] = useState([]); // Multiple files/images state with custom customName & file object
   const [subject, setSubject] = useState(BOOK_LIST[0]);
   const [noteDate, setNoteDate] = useState("");
   const [pdfInfo, setPdfInfo] = useState(""); 
@@ -765,6 +765,33 @@ function App() {
     }
   };
 
+  // Handle files selection with preview and name mapping
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    const newFileEntries = selectedFiles.map((file) => ({
+      file: file,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file)
+    }));
+    setFiles(prev => [...prev, ...newFileEntries]);
+    e.target.value = null; // Reset input so same file can be chosen again if needed
+  };
+
+  // Remove a specific selected file before upload
+  const handleRemoveSelectedFile = (indexToRemove) => {
+    setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  // Rename a specific selected file before upload
+  const handleRenameSelectedFile = (indexToRename, newName) => {
+    setFiles(prev => prev.map((item, index) => {
+      if (index === indexToRename) {
+        return { ...item, name: newName };
+      }
+      return item;
+    }));
+  };
+
   const handleUpload = async (e) => {
     e.preventDefault();
     if (isCurrentUserBanned) {
@@ -787,7 +814,8 @@ function App() {
       const totalFiles = files.length;
 
       for (let index = 0; index < totalFiles; index++) {
-        const currentFile = files[index];
+        const currentFileObj = files[index];
+        const currentFile = currentFileObj.file;
         
         if (currentFile.type === "application/pdf" || currentFile.name.endsWith(".pdf")) {
           const arrayBuffer = await currentFile.arrayBuffer();
@@ -1811,24 +1839,61 @@ function App() {
 
                   <input type="text" placeholder="নোট সংক্রান্ত অতিরিক্ত তথ্য (PDF Info)" value={pdfInfo} onChange={(e) => setPdfInfo(e.target.value)} style={{ ...styles.input, marginTop: "12px" }} />
 
-                  {/* Multiple file/image selection input enabled */}
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept=".pdf,.png,.jpg,.jpeg" 
-                    onChange={(e) => setFiles(Array.from(e.target.files))} 
-                    required 
-                    style={{ margin: "15px 0", color: "#94a3b8", fontSize: "13px" }} 
-                  />
-                  
+                  {/* Multiple file/image selection input */}
+                  <div style={{ margin: "15px 0" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
+                      ফাইল বা ছবি সিলেক্ট করুন (একাধিক সিলেক্ট করা যাবে):
+                    </label>
+                    <input 
+                      type="file" 
+                      multiple 
+                      accept=".pdf,.png,.jpg,.jpeg" 
+                      onChange={handleFileSelect} 
+                      style={{ color: "#94a3b8", fontSize: "13px" }} 
+                    />
+                  </div>
+
+                  {/* Selected Files Preview, Rename, and Delete section */}
                   {files.length > 0 && (
-                    <div style={{ fontSize: "12px", color: "#38bdf8", marginBottom: "10px" }}>
-                      নির্বাচিত ফাইল সংখ্যা: {files.length}টি
+                    <div style={styles.selectedFilesContainer}>
+                      <h4 style={{ color: "#38bdf8", fontSize: "13px", marginBottom: "8px" }}>
+                        নির্বাচিত ফাইলসমূহ ({files.length}টি) - প্রিভিউ ও রিনেম করুন:
+                      </h4>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto" }}>
+                        {files.map((item, idx) => (
+                          <div key={idx} style={styles.selectedFileItem}>
+                            {item.file.type.startsWith("image/") || item.file.name.match(/\.(jpg|jpeg|png)$/i) ? (
+                              <img src={item.previewUrl} alt="preview" style={styles.previewThumb} />
+                            ) : (
+                              <div style={styles.pdfThumbPlaceholder}>PDF</div>
+                            )}
+
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <label style={{ fontSize: "10px", color: "#94a3b8" }}>ফাইলের নাম পরিবর্তন করুন:</label>
+                              <input 
+                                type="text" 
+                                value={item.name} 
+                                onChange={(e) => handleRenameSelectedFile(idx, e.target.value)}
+                                style={styles.renameInput}
+                              />
+                            </div>
+
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveSelectedFile(idx)}
+                              style={styles.removeFileBtn}
+                              title="Cancel / Remove File"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
                   {uploading && (
-                    <div style={{ marginBottom: "15px", backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                    <div style={{ marginBottom: "15px", backgroundColor: "#090d16", padding: "12px", borderRadius: "8px", border: "1px solid #1e293b", marginTop: "12px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#38bdf8", marginBottom: "6px" }}>
                         <span>আপলোড ও কনভার্ট হচ্ছে... {uploadProgress}%</span>
                         <span>{uploadSpeed}</span>
@@ -1839,7 +1904,11 @@ function App() {
                     </div>
                   )}
 
-                  <button type="submit" disabled={uploading || isCurrentUserBanned} style={{...styles.uploadBtn, opacity: (uploading || isCurrentUserBanned) ? 0.5 : 1}}>
+                  <button 
+                    type="submit" 
+                    disabled={uploading || isCurrentUserBanned || files.length === 0} 
+                    style={{...styles.uploadBtn, marginTop: "12px", opacity: (uploading || isCurrentUserBanned || files.length === 0) ? 0.5 : 1}}
+                  >
                     {uploading ? "প্রসেসিং ও আপলোড হচ্ছে..." : "নোট আপলোড করুন"}
                   </button>
                 </form>
@@ -2112,6 +2181,13 @@ const styles = {
   inputGroup: { display: "flex", gap: "10px" },
   uploadBtn: { backgroundColor: "#0284c7", color: "#fff", border: "none", padding: "11px", borderRadius: "6px", cursor: "pointer", fontWeight: "500", fontSize: "14px" },
   
+  selectedFilesContainer: { backgroundColor: "#090d16", border: "1px solid #1e293b", borderRadius: "8px", padding: "10px", marginTop: "10px" },
+  selectedFileItem: { display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#1e293b", padding: "8px", borderRadius: "6px" },
+  previewThumb: { width: "36px", height: "36px", objectFit: "cover", borderRadius: "4px", border: "1px solid #334155" },
+  pdfThumbPlaceholder: { width: "36px", height: "36px", backgroundColor: "#dc2626", color: "#fff", fontSize: "10px", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "4px" },
+  renameInput: { padding: "5px 8px", borderRadius: "4px", border: "1px solid #334155", backgroundColor: "#090d16", color: "#fff", fontSize: "12px", width: "100%" },
+  removeFileBtn: { backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid #ef4444", padding: "6px 8px", borderRadius: "4px", cursor: "pointer" },
+
   notesGrid: { display: "grid", gap: "16px" },
   noteCard: { backgroundColor: "#0f172a", padding: "16px", borderRadius: "10px", border: "1px solid #1e293b", display: "flex", flexDirection: "column", justifyContent: "space-between" },
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
