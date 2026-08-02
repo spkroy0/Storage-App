@@ -222,10 +222,10 @@ function NoteCardItem({
         </div>
 
         <div style={styles.commentList}>
-          {note.comments?.map((c) => {
+          {note.comments?.map((c, index) => {
             const commentUserRole = getUserRole(c.userEmail, c.userUid);
             return (
-              <div key={c.id || Math.random()} style={styles.singleComment}>
+              <div key={c.id || index} style={styles.singleComment}>
                 <div style={{ flex: 1 }}>
                   <b>{c.userName}</b> <RoleBadge role={commentUserRole} />: {c.text}
                 </div>
@@ -264,7 +264,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState("home"); 
   
-  // App Data States
   const [allNotes, setAllNotes] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -273,12 +272,10 @@ function App() {
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Live Upload Progress States
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState("");
   const [uploadedBytesText, setUploadedBytesText] = useState("");
   
-  // Website Logo State
   const [siteLogoUrl, setSiteLogoUrl] = useState("");
   const [newLogoFile, setNewLogoFile] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -306,11 +303,9 @@ function App() {
 
   const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
 
-  // Responsive Layout Mode State ("auto" by default, or "mobile" / "desktop" manual override if needed)
-  const [deviceMode, setDeviceMode] = useState("auto"); // "auto", "mobile", "desktop"
+  const [deviceMode, setDeviceMode] = useState("auto"); 
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
 
-  // Handle window resizing to dynamically adjust layout for auto mode
   useEffect(() => {
     const handleResize = () => {
       if (deviceMode === "auto") {
@@ -770,7 +765,6 @@ function App() {
     }
   };
 
-  // Convert PDF pages to sequence of images and upload to ImgBB
   const handleUpload = async (e) => {
     e.preventDefault();
     if (isCurrentUserBanned) {
@@ -826,7 +820,6 @@ function App() {
           }
         }
       } else {
-        // Direct Image Upload
         setUploadSpeed("ছবি আপলোড হচ্ছে...");
         setUploadProgress(30);
         const formData = new FormData();
@@ -845,7 +838,7 @@ function App() {
       setUploadProgress(90);
       setUploadSpeed("ডাটাবেসে সেভ হচ্ছে...");
 
-      const downloadURL = imageUrls[0]; // Main view URL
+      const downloadURL = imageUrls[0]; 
       const uName = myProfile.displayName || user.displayName || user.email?.split('@')[0] || "User";
 
       await addDoc(collection(db, "notes"), {
@@ -854,7 +847,7 @@ function App() {
         date: noteDate,
         pdfInfo: pdfInfo.trim(),
         fileUrl: downloadURL,
-        pages: imageUrls, // Storing sequential pages array
+        pages: imageUrls, 
         uploadedBy: uName,
         uploaderUid: user.uid,
         uploaderEmail: user.email,
@@ -1064,7 +1057,6 @@ function App() {
     alert("লিংক কপি হয়েছে!");
   };
 
-  // Compile sequential images back into a PDF for download
   const handleDownload = async (fileUrl, fileName, pages) => {
     try {
       if (pages && pages.length > 0) {
@@ -1567,7 +1559,6 @@ function App() {
           {currentView === "dashboard" && (
             <div style={styles.dashboardSection}>
               
-              {/* Developer tools hidden for non-admins */}
               {isAdmin && (
                 <div style={styles.adminLogoBox}>
                   <h3 style={{ color: "#38bdf8", margin: "0 0 10px 0", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1992,7 +1983,6 @@ function App() {
   );
 }
 
-// STYLES OBJECT
 const styles = {
   container: { fontFamily: "'Hind Siliguri', 'Poppins', sans-serif", backgroundColor: "#090d16", minHeight: "100vh", color: "#f8fafc", transition: "all 0.3s ease" },
   deviceToggleBar: { backgroundColor: "#0f172a", padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: "8px" },
